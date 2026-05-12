@@ -20,34 +20,26 @@ class PhoneInputScreen extends StatelessWidget {
         ),
         child: Column(
           children: [
-            const SizedBox(height: 60),
-            // User Greeting Section (As seen in Login num.JPG)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 25),
-              child: Row(
-                children: [
-                  const CircleAvatar(
-                    radius: 25,
-                    backgroundColor: Colors.white24,
-                    child: Icon(Icons.person, color: Colors.white),
-                  ),
-                  const SizedBox(width: 15),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
-                      //Text("Hello,", style: TextStyle(color: Colors.white70, fontSize: 14)),
-                      Text("Kisan Guide User", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                ],
+            const SizedBox(height: 100), // Top space barha di takay design balanced lagay
+            
+            // Welcome Section (Centered and Double Size)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                "Welcome to KisanGuide",
+                textAlign: TextAlign.center, // Center Align
+                style: TextStyle(
+                  color: Colors.white, 
+                  fontSize: 56, // Double Size (28 * 2)
+                  fontWeight: FontWeight.w900, 
+                  letterSpacing: 1.2,
+                  height: 1.1, // Line spacing for large text
+                ),
               ),
             ),
-            const SizedBox(height: 40),
-            const Text(
-              "Welcome to KisanGuide",
-              style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: 1),
-            ),
+            
             const Spacer(),
+            
             // Glassmorphism Card
             Container(
               padding: const EdgeInsets.all(30),
@@ -67,11 +59,18 @@ class PhoneInputScreen extends StatelessWidget {
                   const Center(
                     child: Text(
                       "Verify with Phone Number",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primaryGreen),
+                      style: TextStyle(
+                        fontSize: 20, 
+                        fontWeight: FontWeight.bold, 
+                        color: AppColors.primaryGreen
+                      ),
                     ),
                   ),
                   const SizedBox(height: 30),
-                  const Text("Phone Number", style: TextStyle(fontWeight: FontWeight.w600, color: Colors.black87)),
+                  const Text(
+                    "Phone Number", 
+                    style: TextStyle(fontWeight: FontWeight.w600, color: Colors.black87)
+                  ),
                   const SizedBox(height: 12),
                   IntlPhoneField(
                     initialCountryCode: 'PK',
@@ -93,6 +92,8 @@ class PhoneInputScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 30),
+                  
+                  // Continue Button (Circular Type)
                   SizedBox(
                     width: double.infinity,
                     height: 58,
@@ -107,9 +108,13 @@ class PhoneInputScreen extends StatelessWidget {
                         backgroundColor: AppColors.primaryGreen,
                         elevation: 5,
                         shadowColor: AppColors.primaryGreen.withValues(alpha: 0.4),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                        // Sides se Circle (Capsule) karne ke liye 30 radius
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)), 
                       ),
-                      child: const Text("Continue", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                      child: const Text(
+                        "Continue", 
+                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)
+                      ),
                     ),
                   ),
                   const SizedBox(height: 20),
