@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:animated_bottom_navigation_bar/animated_bottom_navigation_bar.dart';
-import 'package:weather/weather.dart'; // Weather package add kiya
+import 'package:weather/weather.dart';
 
-// In paths ko apni app ke mutabiq check kar lein
-import '../../weather/screens/weather_screen.dart'; 
-import '../../orchard/screens/orchard_details_screen.dart'; 
-import '../../crops/screens/add_crop_screen.dart'; 
+// --- Fixed Imports based on your project structure ---
+import '../weather/weather_screen.dart'; 
+import '../crops/orchard_details_screen.dart'; 
+import '../crops/add_crop_screen.dart'; 
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -17,12 +17,12 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int _bottomNavIndex = 0;
 
-  // --- Screens List ---
+  // --- Screens List (Restored with correct classes) ---
   final List<Widget> _screens = [
     const HomeContent(),           // Index 0: Home
-    const WeatherScreen(),        // Index 1: Weather
-    const OrchardDetailsScreen(), // Index 2: Baghaat
-    const AddCropScreen(),        // Index 3: Fasal
+    const WeatherScreen(),         // Index 1: Weather
+    const OrchardDetailsScreen(),         // Index 2: Baghaat (Fixed Name)
+    const AddCropScreen(),         // Index 3: Fasal
   ];
 
   final List<IconData> iconList = [
@@ -35,9 +35,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBody: true,
+      // extendBody ko true rakha hai taaki navigation bar transparent effect de sake
+      extendBody: true, 
       body: Stack(
         children: [
+          // Background Gradient (Layyah Theme)
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -61,7 +63,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       floatingActionButton: FloatingActionButton(
         elevation: 8,
         backgroundColor: const Color(0xFFFBC02D),
-        onPressed: () {},
+        onPressed: () {
+          // Add button logic here if needed
+        },
         child: const Icon(Icons.add, color: Color(0xFF1B5E20), size: 35),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
@@ -82,7 +86,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-// --- HomeContent Widget (Ab Live Weather ke sath) ---
+// --- HomeContent (Live Weather Layout) ---
 class HomeContent extends StatefulWidget {
   const HomeContent({super.key});
 
@@ -91,10 +95,9 @@ class HomeContent extends StatefulWidget {
 }
 
 class _HomeContentState extends State<HomeContent> {
-  // Weather Variables
   Weather? _weather;
   bool _isLoading = true;
-  final String _apiKey = "ec9d2ead2f16649d2ef771223db591c6"; // Aapki API Key
+  final String _apiKey = "ec9d2ead2f16649d2ef771223db591c6"; 
 
   @override
   void initState() {
@@ -106,12 +109,14 @@ class _HomeContentState extends State<HomeContent> {
     try {
       WeatherFactory wf = WeatherFactory(_apiKey);
       Weather w = await wf.currentWeatherByCityName("Layyah,PK");
-      setState(() {
-        _weather = w;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _weather = w;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
       debugPrint("Home Weather Error: $e");
     }
   }

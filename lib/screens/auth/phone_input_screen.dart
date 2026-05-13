@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
-import '../../../core/constants/app_colors.dart';
+import '../../core/constants/app_colors.dart';
 import 'otp_verification_screen.dart';
 
 class PhoneInputScreen extends StatelessWidget {

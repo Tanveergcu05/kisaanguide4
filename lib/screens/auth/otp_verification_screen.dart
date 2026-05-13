@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../core/constants/app_colors.dart';
+import '../../core/constants/app_colors.dart';
 import 'user_details_screen.dart'; // Navigation ke liye import
 
 class OTPVerificationScreen extends StatelessWidget {

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../core/constants/app_colors.dart';
-import '../../home/screens/dashboard_screen.dart'; 
+import '../../core/constants/app_colors.dart';
+import '../home/dashboard_screen.dart'; 
 
 class UserDetailsScreen extends StatefulWidget {
   const UserDetailsScreen({super.key});
