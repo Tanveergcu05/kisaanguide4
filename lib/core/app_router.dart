@@ -16,7 +16,6 @@ import '../screens/crops/add_crop_screen.dart';
 import '../screens/crops/orchard_details_screen.dart';
 
 // 5. Finance (Hasab Katab) - Nayi Screen
-import '../screens/finance/expense_tracker_screen.dart';
 
 class AppRouter {
   // Routes ke Unique Names (Constants)
@@ -38,8 +37,7 @@ class AppRouter {
       dashboard: (context) => const DashboardScreen(),
       weather: (context) => const WeatherScreen(),
       addCrop: (context) => const AddCropScreen(),
-      orchard: (context) => const OrchardDetailsScreen(),
-      expenses: (context) => const ExpenseTrackerScreen(), // Nayi entry
+      orchard: (context) => const OrchardDetailsScreen(),// Nayi entry
     };
   }
 

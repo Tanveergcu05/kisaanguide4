@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:animated_bottom_navigation_bar/animated_bottom_navigation_bar.dart';
 import 'package:weather/weather.dart';
 
-// --- Fixed Imports based on your project structure ---
-import '../weather/weather_screen.dart'; 
-import '../crops/orchard_details_screen.dart'; 
-import '../crops/add_crop_screen.dart'; 
+// Sahi paths ensure karein
+import '../../screens/weather/weather_screen.dart'; 
+import '../../screens/crops/orchard_details_screen.dart'; 
+import '../../screens/crops/add_crop_screen.dart'; 
+import '../../data/models/expense_tracker/screens/expense_main_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -17,12 +18,11 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int _bottomNavIndex = 0;
 
-  // --- Screens List (Restored with correct classes) ---
   final List<Widget> _screens = [
-    const HomeContent(),           // Index 0: Home
-    const WeatherScreen(),         // Index 1: Weather
-    const OrchardDetailsScreen(),         // Index 2: Baghaat (Fixed Name)
-    const AddCropScreen(),         // Index 3: Fasal
+    const HomeContent(),           
+    const WeatherScreen(),         
+    const OrchardDetailsScreen(),  
+    const AddCropScreen(),         
   ];
 
   final List<IconData> iconList = [
@@ -35,11 +35,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // extendBody ko true rakha hai taaki navigation bar transparent effect de sake
       extendBody: true, 
       body: Stack(
         children: [
-          // Background Gradient (Layyah Theme)
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -64,7 +62,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         elevation: 8,
         backgroundColor: const Color(0xFFFBC02D),
         onPressed: () {
-          // Add button logic here if needed
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const ExpenseMainScreen()),
+          );
         },
         child: const Icon(Icons.add, color: Color(0xFF1B5E20), size: 35),
       ),
@@ -86,7 +87,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-// --- HomeContent (Live Weather Layout) ---
 class HomeContent extends StatefulWidget {
   const HomeContent({super.key});
 
@@ -117,7 +117,6 @@ class _HomeContentState extends State<HomeContent> {
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
-      debugPrint("Home Weather Error: $e");
     }
   }
 
@@ -144,7 +143,6 @@ class _HomeContentState extends State<HomeContent> {
                           color: Colors.white, 
                           fontWeight: FontWeight.bold, 
                           fontSize: 22,
-                          shadows: [Shadow(color: Colors.black26, blurRadius: 10)]
                         ),
                       ),
                     ),
@@ -166,31 +164,37 @@ class _HomeContentState extends State<HomeContent> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(2),
-                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                child: const CircleAvatar(
+          Expanded( // Header row ko wrap kiya taake ID/Location overflow na karein
+            child: Row(
+              children: [
+                const CircleAvatar(
                   radius: 25,
-                  backgroundColor: Color(0xFFE8F5E9),
-                  child: Icon(Icons.person_rounded, color: Color(0xFF2E7D32), size: 30),
+                  backgroundColor: Colors.white,
+                  child: Icon(Icons.person_rounded, color: Color(0xFF2E7D32)),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text("ID: KG-9901", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
-                  Text("Layyah, Pakistan", style: TextStyle(color: Colors.white70, fontSize: 12)),
-                ],
-              ),
-            ],
+                const SizedBox(width: 12),
+                Expanded( // Column ko expanded kiya taake lambay naam screen ke andar rahein
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Text(
+                        "ID: KG-9901", 
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        "Layyah, Pakistan", 
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.notifications_active, color: Colors.white, size: 28),
-          ),
+          const Icon(Icons.notifications_active, color: Colors.white),
         ],
       ),
     );
@@ -203,38 +207,30 @@ class _HomeContentState extends State<HomeContent> {
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.2),
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: Colors.white30),
       ),
       child: _isLoading 
         ? const Center(child: CircularProgressIndicator(color: Colors.white))
         : Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text("Today", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w500)),
-                  Text(
-                    "${_weather?.temperature?.celsius?.toStringAsFixed(0) ?? "36"}°C", 
-                    style: const TextStyle(color: Colors.white, fontSize: 50, fontWeight: FontWeight.bold)
-                  ),
-                  Text(
-                    _weather?.weatherDescription?.toUpperCase() ?? "CLEAR SKY", 
-                    style: const TextStyle(color: Colors.white, fontSize: 16)
-                  ),
-                ],
+              Expanded( // Weather details ko expanded kiya taake bara text icon ko push na kare
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Today", style: TextStyle(color: Colors.white, fontSize: 18)),
+                    Text(
+                      "${_weather?.temperature?.celsius?.toStringAsFixed(0) ?? "36"}°C", 
+                      style: const TextStyle(color: Colors.white, fontSize: 50, fontWeight: FontWeight.bold)
+                    ),
+                    Text(
+                      _weather?.weatherDescription?.toUpperCase() ?? "CLEAR SKY", 
+                      style: const TextStyle(color: Colors.white),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
               ),
-              Column(
-                children: [
-                  if (_weather?.weatherIcon != null)
-                    Image.network(
-                      "https://openweathermap.org/img/wn/${_weather!.weatherIcon}@2x.png",
-                      width: 80,
-                    )
-                  else
-                    const Icon(Icons.wb_sunny_rounded, color: Colors.yellowAccent, size: 80),
-                ],
-              ),
+              const Icon(Icons.wb_sunny_rounded, color: Colors.yellowAccent, size: 80),
             ],
           ),
     );
@@ -242,24 +238,22 @@ class _HomeContentState extends State<HomeContent> {
 
   Widget _buildNotificationSection() {
     return Container(
-      width: double.infinity,
       margin: const EdgeInsets.symmetric(horizontal: 20),
       padding: const EdgeInsets.all(25),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(35),
-        boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 15, offset: const Offset(0, 8))],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("Advisory & Alerts", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32))),
-          const SizedBox(height: 20),
-          _updateRow(Icons.warning_amber_rounded, "Weather Alert", "High temperature expected in Layyah.", Colors.orange),
-          const Divider(height: 30),
-          _updateRow(Icons.eco, "Crop Advisory", "Best time to sow Sehar-2022 variety.", Colors.green),
-          const Divider(height: 30),
-          _updateRow(Icons.water_drop, "Irrigation", "Next watering cycle starts tomorrow.", Colors.blue),
+          const Text(
+            "Advisory & Alerts", 
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32))
+          ),
+          const SizedBox(height: 15),
+          _updateRow(Icons.warning_amber_rounded, "Weather Alert", "High temperature.", Colors.orange),
+          const Divider(),
+          _updateRow(Icons.eco, "Crop Advisory", "Sowing season started.", Colors.green),
         ],
       ),
     );
@@ -268,18 +262,22 @@ class _HomeContentState extends State<HomeContent> {
   Widget _updateRow(IconData icon, String title, String sub, Color color) {
     return Row(
       children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-          child: Icon(icon, color: color, size: 28),
-        ),
+        Icon(icon, color: color),
         const SizedBox(width: 15),
-        Expanded(
+        Expanded( // Alert text ko expanded kiya taake right overflow na ho
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              Text(sub, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+              Text(
+                title, 
+                style: const TextStyle(fontWeight: FontWeight.bold),
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                sub, 
+                style: const TextStyle(color: Colors.grey, fontSize: 12),
+                overflow: TextOverflow.ellipsis,
+              ),
             ],
           ),
         ),

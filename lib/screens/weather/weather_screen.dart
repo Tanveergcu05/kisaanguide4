@@ -32,7 +32,6 @@ class _WeatherScreenState extends State<WeatherScreen> {
 
       setState(() {
         _currentWeather = current;
-        // Har din ka sirf ek record (dopehr 12 baje wala) filter kar rahe hain list ke liye
         _forecast = forecast.where((w) => w.date!.hour >= 11 && w.date!.hour <= 13).toList();
         _isLoading = false;
       });
@@ -45,45 +44,42 @@ class _WeatherScreenState extends State<WeatherScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // Overflow se bachne ke liye background Scaffold par hi gradient set kiya
       body: Container(
         width: double.infinity,
+        height: MediaQuery.of(context).size.height, // Full screen height
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topRight,
             end: Alignment.bottomLeft,
             colors: [
-              Color(0xFFFBC02D), 
-              Color(0xFF388E3C), 
-              Color(0xFF1B5E20), 
+              Color(0xFFFBC02D),
+              Color(0xFF388E3C),
+              Color(0xFF1B5E20),
             ],
           ),
         ),
         child: SafeArea(
           bottom: false,
-          child: _isLoading 
-            ? const Center(child: CircularProgressIndicator(color: Colors.white))
-            : Column(
-                children: [
-                  _buildAppBar(context),
-                  Expanded(
-                    child: RefreshIndicator(
-                      onRefresh: _fetchWeatherData,
-                      child: SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        child: Column(
-                          children: [
-                            const SizedBox(height: 10),
-                            _buildTodayWeatherCard(),
-                            const SizedBox(height: 30),
-                            _buildForecastSection(), // Forecast list wapis aa gayi
-                            const SizedBox(height: 100),
-                          ],
-                        ),
-                      ),
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator(color: Colors.white))
+              : RefreshIndicator(
+                  onRefresh: _fetchWeatherData,
+                  color: const Color(0xFF388E3C),
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Column(
+                      children: [
+                        _buildAppBar(context),
+                        const SizedBox(height: 10),
+                        _buildTodayWeatherCard(),
+                        const SizedBox(height: 30),
+                        _buildForecastSection(),
+                        const SizedBox(height: 30), // Extra space bottom ke liye
+                      ],
                     ),
                   ),
-                ],
-              ),
+                ),
         ),
       ),
     );
@@ -99,7 +95,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
             icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
           ),
           const Text("Mausam ki Tafseel",
-            style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+              style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
         ],
       ),
     );
@@ -123,16 +119,16 @@ class _WeatherScreenState extends State<WeatherScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text("Today", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w500)),
-                  Text("${_currentWeather?.temperature?.celsius?.toStringAsFixed(0)}°C", 
-                    style: const TextStyle(color: Colors.white, fontSize: 65, fontWeight: FontWeight.bold)),
-                  Text(_currentWeather?.weatherDescription?.toUpperCase() ?? "Clear", 
-                    style: const TextStyle(color: Colors.white, fontSize: 18)),
+                  Text("${_currentWeather?.temperature?.celsius?.toStringAsFixed(0)}°C",
+                      style: const TextStyle(color: Colors.white, fontSize: 55, fontWeight: FontWeight.bold)),
+                  Text(_currentWeather?.weatherDescription?.toUpperCase() ?? "Clear",
+                      style: const TextStyle(color: Colors.white, fontSize: 18)),
                 ],
               ),
               if (_currentWeather?.weatherIcon != null)
-                Image.network("https://openweathermap.org/img/wn/${_currentWeather!.weatherIcon}@4x.png", width: 100)
+                Image.network("https://openweathermap.org/img/wn/${_currentWeather!.weatherIcon}@4x.png", width: 80)
               else
-                const Icon(Icons.wb_sunny_rounded, color: Colors.yellowAccent, size: 90),
+                const Icon(Icons.wb_sunny_rounded, color: Colors.yellowAccent, size: 80),
             ],
           ),
           const SizedBox(height: 25),
@@ -162,7 +158,6 @@ class _WeatherScreenState extends State<WeatherScreen> {
     );
   }
 
-  // --- Fixed Forecast Section ---
   Widget _buildForecastSection() {
     return Container(
       width: double.infinity,
@@ -181,12 +176,11 @@ class _WeatherScreenState extends State<WeatherScreen> {
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32)),
           ),
           const SizedBox(height: 20),
-          // Dynamic List from API
           ..._forecast.map((w) => _forecastRow(
-            DateFormat('EEEE').format(w.date!), 
-            "${w.tempMax?.celsius?.toStringAsFixed(0)}° / ${w.tempMin?.celsius?.toStringAsFixed(0)}°", 
-            w.weatherIcon!
-          )).toList(),
+                DateFormat('EEEE').format(w.date!),
+                "${w.tempMax?.celsius?.toStringAsFixed(0)}° / ${w.tempMin?.celsius?.toStringAsFixed(0)}°",
+                w.weatherIcon!,
+              )).toList(),
         ],
       ),
     );
@@ -206,7 +200,9 @@ class _WeatherScreenState extends State<WeatherScreen> {
             child: Image.network("https://openweathermap.org/img/wn/$iconCode.png", width: 35),
           ),
           Expanded(
-            child: Text(temp, textAlign: TextAlign.right, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black54)),
+            child: Text(temp,
+                textAlign: TextAlign.right,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black54)),
           ),
         ],
       ),
