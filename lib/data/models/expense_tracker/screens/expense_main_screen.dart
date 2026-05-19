@@ -31,7 +31,7 @@ class ExpenseMainScreen extends StatefulWidget {
   State<ExpenseMainScreen> createState() => _ExpenseMainScreenState();
 }
 
-class _ExpenseMainScreenState extends State<ExpenseMainScreen> {
+class _ExpenseMainScreenState extends State<ExpenseMainScreen> with TickerProviderStateMixin {
   // Selection States
   FarmType selectedType = FarmType.crops;
   String? selectedSubType; 
@@ -43,7 +43,7 @@ class _ExpenseMainScreenState extends State<ExpenseMainScreen> {
   final TextEditingController _amountController = TextEditingController();
   final TextEditingController _areaController = TextEditingController();
   final TextEditingController _ageController = TextEditingController();
-  final TextEditingController _plantsController = TextEditingController(); // Naya controller
+  final TextEditingController _plantsController = TextEditingController(); 
   final TextEditingController _noteController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
 
@@ -73,6 +73,10 @@ class _ExpenseMainScreenState extends State<ExpenseMainScreen> {
     'Multiple Kharcha',
     'Fasal Sale (Income/Aamdani)'
   ];
+
+  // Premium Darker Green Theme Colors
+  final Color premiumDarkGreen = const Color(0xFF1E5E3A); 
+  final Color premiumMidGreen = const Color(0xFF2D8A4E);
 
   // Calculations
   double get totalExpenses => recordsList
@@ -109,13 +113,15 @@ class _ExpenseMainScreenState extends State<ExpenseMainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAF8),
+      backgroundColor: const Color(0xFFF6F9F6),
       appBar: AppBar(
         title: const Text("Zarai Expense Tracker"),
-        backgroundColor: const Color(0xFF1B4332),
+        backgroundColor: premiumDarkGreen,
         foregroundColor: Colors.white,
+        elevation: 0,
       ),
       body: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -124,8 +130,49 @@ class _ExpenseMainScreenState extends State<ExpenseMainScreen> {
             _buildTypeToggle(),
             const SizedBox(height: 20),
 
-            _buildSectionHeader("2. Detail Bharrein"),
-            _buildFarmDetailCard(),
+            // --- ALL IN ONE COHESIVE ANIMATION BLOCK ---
+            AnimatedSize(
+              duration: const Duration(milliseconds: 600),
+              curve: Curves.easeInOutCubic,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSectionHeader("2. Detail Bharrein"),
+                  
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 600),
+                    switchInCurve: Curves.easeInOutCubic, // Sahi parameter fixed here
+                    switchOutCurve: Curves.easeInOutCubic, // Sahi parameter fixed here
+                    layoutBuilder: (Widget? currentChild, List<Widget> previousChildren) {
+                      return Stack(
+                        alignment: Alignment.topCenter,
+                        children: <Widget>[
+                          ...previousChildren,
+                          if (currentChild != null) currentChild,
+                        ],
+                      );
+                    },
+                    transitionBuilder: (Widget child, Animation<double> animation) {
+                      final offsetAnimation = Tween<Offset>(
+                        begin: const Offset(0.0, -0.1), 
+                        end: Offset.zero,
+                      ).animate(animation);
+
+                      return FadeTransition(
+                        opacity: animation,
+                        child: SlideTransition(
+                          position: offsetAnimation,
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: selectedType == FarmType.baghaat
+                        ? _buildFarmDetailCard(key: const ValueKey('baghaat_sync_view'))
+                        : _buildFarmDetailCard(key: const ValueKey('crops_sync_view')),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 20),
 
             _buildSectionHeader("3. Kharcha / Aamdani Add Karein"),
@@ -154,51 +201,119 @@ class _ExpenseMainScreenState extends State<ExpenseMainScreen> {
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
       child: Text(
         title,
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF2D6A4F)),
+        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: premiumDarkGreen),
       ),
     );
   }
 
   Widget _buildTypeToggle() {
-    return Row(
-      children: [
-        _typeButton("Baghaat", FarmType.baghaat, const Color(0xFF52B788)),
-        const SizedBox(width: 12),
-        _typeButton("Faslein", FarmType.crops, const Color(0xFFBC6C25)),
-      ],
-    );
-  }
-
-  Widget _typeButton(String label, FarmType type, Color activeColor) {
-    bool isSelected = selectedType == type;
-    return Expanded(
-      child: InkWell(
-        onTap: () {
-          setState(() {
-            selectedType = type;
-            selectedSubType = null;
-          });
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 15),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        double width = constraints.maxWidth;
+        return Container(
+          height: 54,
+          width: width,
+          padding: const EdgeInsets.all(4), 
           decoration: BoxDecoration(
-            color: isSelected ? activeColor : Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: isSelected ? activeColor : Colors.grey.shade300),
+            color: Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(30), 
+            border: Border.all(color: Colors.grey.shade200),
           ),
-          child: Center(child: Text(label, style: TextStyle(color: isSelected ? Colors.white : Colors.black87, fontWeight: FontWeight.bold))),
-        ),
-      ),
+          child: Stack(
+            children: [
+              AnimatedAlign(
+                duration: const Duration(milliseconds: 500),
+                curve: Curves.easeInOutCubic, 
+                alignment: selectedType == FarmType.baghaat
+                    ? Alignment.centerLeft
+                    : Alignment.centerRight,
+                child: Container(
+                  width: (width - 8) / 2,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: premiumMidGreen, 
+                    borderRadius: BorderRadius.circular(25), 
+                    boxShadow: [
+                      BoxShadow(
+                        color: premiumMidGreen.withOpacity(0.25),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {
+                        if (selectedType != FarmType.baghaat) {
+                          setState(() {
+                            selectedType = FarmType.baghaat;
+                            selectedSubType = null;
+                          });
+                        }
+                      },
+                      child: Center(
+                        child: AnimatedDefaultTextStyle(
+                          duration: const Duration(milliseconds: 250),
+                          style: TextStyle(
+                            color: selectedType == FarmType.baghaat ? Colors.white : Colors.black54,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                          child: const Text("Baghaat"),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {
+                        if (selectedType != FarmType.crops) {
+                          setState(() {
+                            selectedType = FarmType.crops;
+                            selectedSubType = null;
+                          });
+                        }
+                      },
+                      child: Center(
+                        child: AnimatedDefaultTextStyle(
+                          duration: const Duration(milliseconds: 250),
+                          style: TextStyle(
+                            color: selectedType == FarmType.crops ? Colors.white : Colors.black54,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                          child: const Text("Faslein"),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildFarmDetailCard() {
+  Widget _buildFarmDetailCard({required Key key}) {
     return Card(
+      key: key,
       elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: BorderSide(color: Colors.grey.shade200)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15), 
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             DropdownButtonFormField<String>(
               value: selectedSubType,
@@ -211,37 +326,48 @@ class _ExpenseMainScreenState extends State<ExpenseMainScreen> {
               decoration: const InputDecoration(border: OutlineInputBorder()),
             ),
             const SizedBox(height: 15),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _areaController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: "Area (Acre)", border: OutlineInputBorder()),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                if (selectedType == FarmType.baghaat) ...[
+            
+            if (selectedType == FarmType.baghaat) ...[
+              Row(
+                children: [
                   Expanded(
                     child: TextField(
-                      controller: _plantsController, // Podon ki tadad ka field
+                      controller: _areaController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: "Area (Acre)", border: OutlineInputBorder()),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _plantsController, 
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(labelText: "Podon ki Tadad", border: OutlineInputBorder()),
                     ),
                   ),
-                ] else ...[
-                   const Spacer(), // Faslein ke liye jagah khaali chhorne ke liye
-                ]
-              ],
-            ),
-            if (selectedType == FarmType.baghaat) ...[
+                ],
+              ),
               const SizedBox(height: 12),
               TextField(
                 controller: _ageController,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(labelText: "Bagh ki Umar (Saal)", border: OutlineInputBorder()),
               ),
-            ]
+            ] else ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _areaController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: "Area (Acre)", border: OutlineInputBorder()),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Spacer(),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -260,7 +386,7 @@ class _ExpenseMainScreenState extends State<ExpenseMainScreen> {
             ListTile(
               contentPadding: EdgeInsets.zero,
               title: Text("Tareekh: ${selectedDate.day}/${selectedDate.month}/${selectedDate.year}"),
-              trailing: const Icon(Icons.calendar_today, color: Color(0xFF2D6A4F)),
+              trailing: Icon(Icons.calendar_today, color: premiumMidGreen),
               onTap: () => _selectDate(context),
             ),
             const Divider(),
@@ -289,7 +415,11 @@ class _ExpenseMainScreenState extends State<ExpenseMainScreen> {
               height: 50,
               child: ElevatedButton(
                 onPressed: _saveEntry,
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2D6A4F), foregroundColor: Colors.white),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: premiumMidGreen, 
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
                 child: const Text("Record Save Karein"),
               ),
             ),
@@ -327,14 +457,17 @@ class _ExpenseMainScreenState extends State<ExpenseMainScreen> {
   Widget _buildSummaryCard() {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF1B4332), Color(0xFF2D6A4F)]), borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [premiumDarkGreen, premiumMidGreen]), 
+        borderRadius: BorderRadius.circular(20),
+      ),
       child: Column(
         children: [
-          _summaryRow("Kul Kharcha:", totalExpenses, Colors.redAccent),
+          _summaryRow("Kul Kharcha:", totalExpenses, Colors.redAccent.shade100),
           const Divider(color: Colors.white24),
-          _summaryRow("Kul Aamdani:", totalIncome, Colors.lightGreenAccent),
+          _summaryRow("Kul Aamdani:", totalIncome, Colors.greenAccent.shade100),
           const Divider(color: Colors.white24),
-          _summaryRow("Net Munafa:", netProfit, netProfit >= 0 ? Colors.greenAccent : Colors.orangeAccent, isBold: true),
+          _summaryRow("Net Munafa:", netProfit, netProfit >= 0 ? Colors.greenAccent.shade400 : Colors.orangeAccent, isBold: true),
         ],
       ),
     );
@@ -344,7 +477,7 @@ class _ExpenseMainScreenState extends State<ExpenseMainScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(color: Colors.white)),
+        Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
         Text("Rs. ${val.toStringAsFixed(0)}", style: TextStyle(color: color, fontSize: isBold ? 20 : 16, fontWeight: isBold ? FontWeight.bold : FontWeight.normal)),
       ],
     );
@@ -356,8 +489,8 @@ class _ExpenseMainScreenState extends State<ExpenseMainScreen> {
       onChanged: (val) => setState(() => searchQuery = val),
       decoration: InputDecoration(
         hintText: "History mein talash karein...",
-        prefixIcon: const Icon(Icons.search),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        prefixIcon: Icon(Icons.search, color: premiumMidGreen),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         filled: true,
         fillColor: Colors.white,
       ),

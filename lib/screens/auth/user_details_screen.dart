@@ -74,12 +74,36 @@ class _UserDetailsScreenState extends State<UserDetailsScreen> {
                   ),
                   const SizedBox(height: 30),
                   
-                  // Form Switcher
-                  _currentStep == 0 ? _buildStep1() : _buildStep2(),
+                  // Form Switcher with Slide Animation
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 350),
+                    transitionBuilder: (Widget child, Animation<double> animation) {
+                      final inAnimation = Tween<Offset>(
+                        begin: const Offset(1.0, 0.0), 
+                        end: Offset.zero
+                      ).animate(animation);
+                      
+                      final outAnimation = Tween<Offset>(
+                        begin: const Offset(-1.0, 0.0), 
+                        end: Offset.zero
+                      ).animate(animation);
+
+                      return SlideTransition(
+                        position: child.key == ValueKey<int>(_currentStep) 
+                            ? inAnimation 
+                            : outAnimation,
+                        child: child,
+                      );
+                    },
+                    child: Container(
+                      key: ValueKey<int>(_currentStep),
+                      child: _currentStep == 0 ? _buildStep1() : _buildStep2(),
+                    ),
+                  ),
                   
                   const SizedBox(height: 40),
                   
-                  // Action Button
+                  // Action Button (Capsule Shape)
                   SizedBox(
                     width: double.infinity,
                     height: 58,
@@ -97,7 +121,8 @@ class _UserDetailsScreenState extends State<UserDetailsScreen> {
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryGreen,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                        // StadiumBorder lagane se button perfect capsule ban jata hai
+                        shape: const StadiumBorder(), 
                         elevation: 5,
                       ),
                       child: Text(
