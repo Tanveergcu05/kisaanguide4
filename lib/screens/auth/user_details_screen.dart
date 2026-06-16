@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // User uid nikalne ke liye
+import 'package:cloud_firestore/cloud_firestore.dart'; // Data save karne ke liye
 import '../../core/constants/app_colors.dart';
 import '../home/dashboard_screen.dart'; 
 
@@ -11,6 +13,7 @@ class UserDetailsScreen extends StatefulWidget {
 
 class _UserDetailsScreenState extends State<UserDetailsScreen> {
   int _currentStep = 0;
+  bool _isLoading = false; // Loading indicator ke liye variable
   
   // Controllers
   final TextEditingController _nameController = TextEditingController();
@@ -22,7 +25,69 @@ class _UserDetailsScreenState extends State<UserDetailsScreen> {
   String _selectedCrop = 'Wheat (Gandum)';
   
   // Multiple Selection ke liye List use ki hai
-  List<String> _selectedWater = []; 
+  final List<String> _selectedWater = []; 
+
+  // Firestore mein kisaan ka data save karne ka function
+  Future<void> _saveFarmerDetails() async {
+    // Basic validation check
+    if (_nameController.text.trim().isEmpty || _areaController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tafseelat mukammal darj karein (Please fill all fields)')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Current login kisaan ki unique ID nikal rahe hain
+      User? currentUser = FirebaseAuth.instance.currentUser;
+
+      if (currentUser != null) {
+        // OTP screen wale path 'users' par hi data save ho raha hai
+        await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).set({
+          'uid': currentUser.uid,
+          'phoneNumber': currentUser.phoneNumber ?? '',
+          'name': _nameController.text.trim(),
+          'landArea': _areaController.text.trim(),
+          'landUnit': _selectedUnit,
+          'mainCrop': _selectedCrop,
+          'soilType': _selectedSoil,
+          'waterSources': _selectedWater,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        if (mounted) {
+          // Data successfully save hone ke baad Dashboard par move karein gae
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const DashboardScreen()),
+            (route) => false,
+          );
+        }
+      } else {
+        throw Exception("User session not found. Please re-login.");
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving details: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _areaController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -108,27 +173,33 @@ class _UserDetailsScreenState extends State<UserDetailsScreen> {
                     width: double.infinity,
                     height: 58,
                     child: ElevatedButton(
-                      onPressed: () {
-                        if (_currentStep == 0) {
-                          setState(() => _currentStep = 1);
-                        } else {
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(builder: (context) => const DashboardScreen()),
-                            (route) => false,
-                          );
-                        }
-                      },
+                      onPressed: _isLoading 
+                          ? null 
+                          : () {
+                              if (_currentStep == 0) {
+                                if (_nameController.text.trim().isEmpty || _areaController.text.trim().isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Please fill all fields first')),
+                                  );
+                                  return;
+                                }
+                                setState(() => _currentStep = 1);
+                              } else {
+                                // Yahan direct navigation ke bajaye save function call hoga
+                                _saveFarmerDetails();
+                              }
+                            },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryGreen,
-                        // StadiumBorder lagane se button perfect capsule ban jata hai
                         shape: const StadiumBorder(), 
                         elevation: 5,
                       ),
-                      child: Text(
-                        _currentStep == 0 ? "Agla Marhala (Next)" : "Finish", 
-                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)
-                      ),
+                      child: _isLoading 
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : Text(
+                              _currentStep == 0 ? "Agla Marhala (Next)" : "Finish", 
+                              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)
+                            ),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -151,6 +222,7 @@ class _UserDetailsScreenState extends State<UserDetailsScreen> {
   // Step 1: Farmer Name & Land Area
   Widget _buildStep1() {
     return Column(
+      key: const ValueKey<String>('step1'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _label("Farmer Name"),
@@ -196,6 +268,7 @@ class _UserDetailsScreenState extends State<UserDetailsScreen> {
   // Step 2: Agriculture Details (Updated for Multi-Selection)
   Widget _buildStep2() {
     return Column(
+      key: const ValueKey<String>('step2'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _label("Main Crop (Asal Fasal)"),
@@ -259,13 +332,16 @@ class _UserDetailsScreenState extends State<UserDetailsScreen> {
   );
 
   Widget _customDropdown({required String value, required List<String> items, required Function(String?) onChanged}) {
+    // Dropdown assertion failure crash se bachne ke liye item safety fallback condition
+    String validatedValue = items.contains(value) ? value : items.first;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 15),
       decoration: BoxDecoration(color: AppColors.softGrey, borderRadius: BorderRadius.circular(15)),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           isExpanded: true,
-          value: value,
+          value: validatedValue,
           items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
           onChanged: onChanged,
         ),

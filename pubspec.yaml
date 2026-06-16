@@ -39,8 +39,11 @@ dependencies:
   animated_bottom_navigation_bar: ^1.4.0
   intl: ^0.20.2
   weather: ^3.2.1
-  shared_preferences: ^2.2.3
+  shared_preferences: ^2.5.5
   google_generative_ai: ^0.4.0  # AI package for Gemini
+  firebase_core: ^4.9.0
+  firebase_auth: ^6.5.1
+  cloud_firestore: ^6.4.1
 
 dev_dependencies:
   flutter_test:

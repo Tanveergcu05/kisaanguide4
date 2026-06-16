@@ -148,7 +148,7 @@ class _ExpenseMainScreenState extends State<ExpenseMainScreen> with TickerProvid
                         alignment: Alignment.topCenter,
                         children: <Widget>[
                           ...previousChildren,
-                          if (currentChild != null) currentChild,
+                          ?currentChild,
                         ],
                       );
                     },
@@ -316,7 +316,7 @@ class _ExpenseMainScreenState extends State<ExpenseMainScreen> with TickerProvid
           mainAxisSize: MainAxisSize.min,
           children: [
             DropdownButtonFormField<String>(
-              value: selectedSubType,
+              initialValue: selectedSubType,
               isExpanded: true,
               hint: const Text("Fasal ya Bagh ki Qism"),
               items: (selectedType == FarmType.baghaat ? orchardTypes : cropTypes)

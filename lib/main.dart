@@ -1,13 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-// Is import ko check karlein ke aapke project ka folder name 'kisaanguide4' hi hai na?
+import 'package:firebase_core/firebase_core.dart'; 
+import 'package:shared_preferences/shared_preferences.dart';
+import 'firebase_options.dart'; 
 import 'package:kisaanguide4/core/app_router.dart';
 
-void main() {
-  // Yeh line zaroori hai agar hum hardware ya system settings (jaise orientation) use karein
+// Screens ke standard classes aur paths
+import 'screens/auth/phone_input_screen.dart'; 
+import 'screens/home/dashboard_screen.dart';
+
+// Global variable taake check kiya ja sake ke user pehle se logged in hai ya nahi
+bool isUserLoggedIn = false;
+
+void main() async { 
+  // Hardware aur native plugins (Firebase/SharedPreferences) initialize karne ke liye zaroori line
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Status bar ko professional look dene ke liye (Optional)
+  // Firebase ko project ke sath initialize kiya gaya hai
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // SharedPreferences se local data read kar rahe hain (Yeh internet ka intezar nahi karta)
+  SharedPreferences prefs = await SharedPreferences.getInstance();
+  // Agar 'isLoggedIn' khali (null) milega to default false set ho jayega
+  isUserLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+
+  // Status bar ko professional transparent look dene ke liye
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -24,18 +43,13 @@ class KisaanGuideApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      // Debug banner ko khatam karna professional lagta hai
       debugShowCheckedModeBanner: false,
-      
       title: 'Kisaan Guide',
 
       // Professional Theme Configuration
       theme: ThemeData(
         useMaterial3: true,
-        // Kisaan App ke liye Green color scheme behtreen hai
         colorSchemeSeed: Colors.green,
-        
-        // Fonts aur Text styling ko yahan se poori app mein control kiya ja sakta hai
         appBarTheme: const AppBarTheme(
           centerTitle: true,
           elevation: 0,
@@ -44,14 +58,18 @@ class KisaanGuideApp extends StatelessWidget {
         ),
       ),
 
-      // Professional Routing Setup
-      // initialRoute wo screen hai jo app khulne par sabse pehle dikhegi
-      initialRoute: AppRouter.phoneInput,
+      // BULLET SPEED DIRECT ROUTING: 
+      // Agar local memory me user logged in hai to direct Dashboard, nahi to Phone Input Screen!
+      initialRoute: isUserLoggedIn ? '/dashboard' : '/',
       
-      // Saari screens ka rasta AppRouter sambhale ga
-      routes: AppRouter.getRoutes(),
+      // Map routes: Saari screens ka table jo AppRouter ke sath merge ho jayega
+      routes: {
+        '/': (context) => const PhoneInputScreen(), 
+        '/dashboard': (context) => const DashboardScreen(),
+        ...AppRouter.getRoutes(), // Aapke baki saare routes jo pehle se chal rahe hain
+      },
 
-      // Agar koi route galti se miss ho jaye toh error se bachne ke liye
+      // Agar koi route galti se miss ho jaye toh handle karne ke liye
       onUnknownRoute: (settings) {
         return MaterialPageRoute(
           builder: (context) => const Scaffold(

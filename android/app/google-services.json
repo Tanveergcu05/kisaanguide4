@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "318450145188",
+    "project_id": "kisaanguide4",
+    "storage_bucket": "kisaanguide4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:318450145188:android:7ede9842e13140ff685331",
+        "android_client_info": {
+          "package_name": "com.example.kisaanguide4"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyASRCpsVrjZ34Fls9Y43RSw4MH9vCQP99E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
