@@ -2,12 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:animated_bottom_navigation_bar/animated_bottom_navigation_bar.dart';
 import 'package:weather/weather.dart';
 import 'dart:math' as math;
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Sahi paths ensure karein
 import '../../screens/weather/weather_screen.dart'; 
 import '../../screens/crops/orchard_details_screen.dart'; 
 import '../../screens/crops/add_crop_screen.dart'; 
 import '../../data/models/expense_tracker/screens/expense_main_screen.dart';
+import '../../core/app_router.dart';
+import '../../core/config/app_config.dart';
+import '../auth/phone_input_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -64,7 +69,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
     final List<Widget> screens = [
       HomeContent(onMenuPressed: _toggleSidebar, isUrdu: _isUrdu),           
       const WeatherScreen(),         
-      const OrchardDetailsScreen(),  
+      OrchardDetailsScreen(initialIsEnglish: !_isUrdu),
       AddCropScreen(isUrdu: _isUrdu), // FIXED: Passed the language parameter here
     ];
 
@@ -146,10 +151,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                 elevation: 8,
                 backgroundColor: const Color(0xFFFBC02D),
                 onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const ExpenseMainScreen()),
-                  );
+                  Navigator.pushNamed(context, AppRouter.expenses);
                 },
                 child: const Icon(Icons.add, color: Color(0xFF1B5E20), size: 35),
               ),
@@ -273,10 +275,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
             // LOGOUT BUTTON IMPLEMENTATION
             InkWell(
               onTap: () {
-                // Apna Logout logic yahan implement karein (e.g., Prefs update karke Navigator clear)
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(_isUrdu ? "لاگ آؤٹ ہو رہا ہے..." : "Logging out...")),
-                );
+                _logout();
               },
               borderRadius: BorderRadius.circular(15),
               child: Container(
@@ -327,6 +326,26 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
       ),
     );
   }
+
+  Future<void> _logout() async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('isLoggedIn', false);
+      await FirebaseAuth.instance.signOut();
+
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const PhoneInputScreen()),
+        (route) => false,
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(_isUrdu ? "لاگ آؤٹ ناکام رہا" : "Logout failed")),
+      );
+    }
+  }
 }
 
 class HomeContent extends StatefulWidget {
@@ -341,7 +360,7 @@ class HomeContent extends StatefulWidget {
 class _HomeContentState extends State<HomeContent> {
   Weather? _weather;
   bool _isLoading = true;
-  final String _apiKey = "ec9d2ead2f16649d2ef771223db591c6"; 
+  final String _apiKey = AppConfig.openWeatherApiKey;
 
   @override
   void initState() {
@@ -352,7 +371,7 @@ class _HomeContentState extends State<HomeContent> {
   void _fetchLiveWeather() async {
     try {
       WeatherFactory wf = WeatherFactory(_apiKey);
-      Weather w = await wf.currentWeatherByCityName("Layyah,PK");
+      Weather w = await wf.currentWeatherByCityName(AppConfig.defaultWeatherCity);
       if (mounted) {
         setState(() {
           _weather = w;

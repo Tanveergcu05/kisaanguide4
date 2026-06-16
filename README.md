@@ -1,17 +1,32 @@
-# kisaanguide4
+# Kisaan Guide 4
 
-A new Flutter project.
+Flutter app for farmers: **Phone auth**, **Weather (online + offline cache)**, **Crops guide (Urdu/English)**, **Orchard tips**, and **Expense tracker**.
 
-## Getting Started
+## Requirements
 
-This project is a starting point for a Flutter application.
+- Flutter: `3.32.5` (current workspace)  
+- Dart: `3.8.1`
 
-A few resources to get you started if this is your first Flutter project:
+## Run (local)
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+Install deps:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+flutter pub get
+```
+
+Optional (recommended) OpenWeather API key override:
+
+```bash
+flutter run --dart-define=OPENWEATHER_API_KEY=YOUR_KEY
+```
+
+## Firebase
+
+- App is configured via FlutterFire (`lib/firebase_options.dart`).
+- Firestore security rules live in `firestore.rules`.
+- Storage rules live in `storage.rules`.
+
+## Notes
+
+- The OpenWeather key is centralized in `lib/core/config/app_config.dart`. If a real key is committed, treat it as leaked and rotate it.

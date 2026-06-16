@@ -3,6 +3,7 @@ import 'package:intl/intl.dart' hide TextDirection;
 import 'package:weather/weather.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import '../../core/config/app_config.dart';
 
 class AddCropScreen extends StatefulWidget {
   final bool isUrdu;
@@ -28,7 +29,7 @@ class _AddCropScreenState extends State<AddCropScreen> with TickerProviderStateM
   static const Color lightYellow = Color(0xFFFFFDE7);    // Soft Background Cream Yellow
   static const Color darkGrey = Color(0xFF2D312E);       // Professional Text Grey
 
-  final String _apiKey = "ec9d2ead2f16649d2ef771223db591c6";
+  final String _apiKey = AppConfig.openWeatherApiKey;
 
   final List<Map<String, dynamic>> _crops = [
     {"name": "Wheat", "urdu": "گندم", "icon": Icons.grain},
@@ -436,7 +437,7 @@ class _AddCropScreenState extends State<AddCropScreen> with TickerProviderStateM
   void _fetchWeather() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     try {
-      Weather weather = await _wf.currentWeatherByCityName("Layyah");
+      Weather weather = await _wf.currentWeatherByCityName(AppConfig.defaultWeatherCity);
       setState(() {
         _currentWeather = weather;
         _isLoadingWeather = false;

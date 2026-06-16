@@ -15,9 +15,8 @@ import '../screens/weather/weather_screen.dart';
 import '../screens/crops/add_crop_screen.dart';
 import '../screens/crops/orchard_details_screen.dart';
 
-// 5. Finance (Hasab Katab) - Nayi Screen
-// TODO: Jab aap Expenses wali screen bana lein, toh uska import yahan add kar lijiyega.
-// import '../screens/finance/expenses_screen.dart'; 
+// 5. Finance (Hasab Katab)
+import '../data/models/expense_tracker/screens/expense_main_screen.dart';
 
 class AppRouter {
   // Routes ke Unique Names (Constants)
@@ -57,12 +56,13 @@ class AppRouter {
         return AddCropScreen(isUrdu: isUrduLanguage);
       },
       
-      orchard: (context) => const OrchardDetailsScreen(),
+      orchard: (context) {
+        final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+        final bool initialIsEnglish = args?['initialIsEnglish'] ?? true;
+        return OrchardDetailsScreen(initialIsEnglish: initialIsEnglish);
+      },
       
-      // TODO: Jab ExpensesScreen ban jaye, toh Placeholder widget ko actual screen se replace kar dena
-      expenses: (context) => const Scaffold(
-        body: Center(child: Text("Expenses Screen Coming Soon")),
-      ),
+      expenses: (context) => const ExpenseMainScreen(),
     };
   }
 

@@ -1,7 +1,8 @@
 import 'package:weather/weather.dart';
+import '../../core/config/app_config.dart';
 
 class MyWeatherService {
-  final String _apiKey = "ec9d2ead2f16649d2ef771223db591c6";
+  final String _apiKey = AppConfig.openWeatherApiKey;
   late WeatherFactory _wf;
 
   MyWeatherService() {
@@ -10,7 +11,7 @@ class MyWeatherService {
 
   Future<Weather?> getLayyahWeather() async {
     try {
-      return await _wf.currentWeatherByCityName("Layyah,PK");
+      return await _wf.currentWeatherByCityName(AppConfig.defaultWeatherCity);
     } catch (e) {
       return null;
     }

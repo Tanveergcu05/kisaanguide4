@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart'; 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart'; 
 import 'package:kisaanguide4/core/app_router.dart';
@@ -24,7 +25,9 @@ void main() async {
   // SharedPreferences se local data read kar rahe hain (Yeh internet ka intezar nahi karta)
   SharedPreferences prefs = await SharedPreferences.getInstance();
   // Agar 'isLoggedIn' khali (null) milega to default false set ho jayega
-  isUserLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+  final bool prefsLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+  final bool hasFirebaseSession = FirebaseAuth.instance.currentUser != null;
+  isUserLoggedIn = prefsLoggedIn && hasFirebaseSession;
 
   // Status bar ko professional transparent look dene ke liye
   SystemChrome.setSystemUIOverlayStyle(
@@ -60,12 +63,12 @@ class KisaanGuideApp extends StatelessWidget {
 
       // BULLET SPEED DIRECT ROUTING: 
       // Agar local memory me user logged in hai to direct Dashboard, nahi to Phone Input Screen!
-      initialRoute: isUserLoggedIn ? '/dashboard' : '/',
+      initialRoute: isUserLoggedIn ? AppRouter.dashboard : AppRouter.phoneInput,
       
       // Map routes: Saari screens ka table jo AppRouter ke sath merge ho jayega
       routes: {
-        '/': (context) => const PhoneInputScreen(), 
-        '/dashboard': (context) => const DashboardScreen(),
+        AppRouter.phoneInput: (context) => const PhoneInputScreen(), 
+        AppRouter.dashboard: (context) => const DashboardScreen(),
         ...AppRouter.getRoutes(), // Aapke baki saare routes jo pehle se chal rahe hain
       },
 

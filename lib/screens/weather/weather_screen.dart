@@ -3,6 +3,7 @@ import 'package:weather/weather.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import '../../core/config/app_config.dart';
 
 class WeatherScreen extends StatefulWidget {
   const WeatherScreen({super.key});
@@ -22,8 +23,8 @@ class _WeatherScreenState extends State<WeatherScreen> {
   bool _isLoading = true;
   bool _isOffline = false;
 
-  final String _apiKey = "ec9d2ead2f16649d2ef771223db591c6";
-  final String _city = "Layyah,PK";
+  final String _apiKey = AppConfig.openWeatherApiKey;
+  final String _city = AppConfig.defaultWeatherCity;
 
   @override
   void initState() {

@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="720" viewBox="0 0 1100 720">
+  <defs>
+    <style>
+      .title { font: 700 22px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Arial, sans-serif; fill: #111827; }
+      .axis  { font: 600 12px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Arial, sans-serif; fill: #374151; }
+      .label { font: 500 12px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Arial, sans-serif; fill: #111827; }
+      .pct   { font: 700 12px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Arial, sans-serif; fill: #111827; }
+      .grid  { stroke: #E5E7EB; stroke-width: 1; }
+      .frame { stroke: #E5E7EB; stroke-width: 1; fill: #FFFFFF; }
+      .avg   { stroke: #1565C0; stroke-width: 2.5; stroke-dasharray: 8 6; }
+      .legend { font: 600 12px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Arial, sans-serif; fill: #111827; }
+      .note { font: 500 11px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Arial, sans-serif; fill: #6B7280; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect x="0" y="0" width="1100" height="720" fill="#FFFFFF"/>
+
+  <!-- Title -->
+  <text class="title" x="40" y="50">KisaanGuide4 - Completion Estimate by Area</text>
+
+  <!-- Plot frame -->
+  <rect class="frame" x="40" y="80" width="1020" height="560" rx="14"/>
+
+  <!-- Axes / grid -->
+  <!-- Plot area: left=320, right=1030, top=110, bottom=610 -->
+  <!-- Grid at 0,20,40,60,80,100 -->
+  <g>
+    <line class="grid" x1="320" y1="110" x2="320" y2="610"/>
+    <line class="grid" x1="462" y1="110" x2="462" y2="610"/>
+    <line class="grid" x1="604" y1="110" x2="604" y2="610"/>
+    <line class="grid" x1="746" y1="110" x2="746" y2="610"/>
+    <line class="grid" x1="888" y1="110" x2="888" y2="610"/>
+    <line class="grid" x1="1030" y1="110" x2="1030" y2="610"/>
+  </g>
+
+  <g>
+    <text class="axis" x="318" y="635" text-anchor="middle">0</text>
+    <text class="axis" x="462" y="635" text-anchor="middle">20</text>
+    <text class="axis" x="604" y="635" text-anchor="middle">40</text>
+    <text class="axis" x="746" y="635" text-anchor="middle">60</text>
+    <text class="axis" x="888" y="635" text-anchor="middle">80</text>
+    <text class="axis" x="1030" y="635" text-anchor="middle">100</text>
+    <text class="axis" x="675" y="665" text-anchor="middle">Completion (%)</text>
+  </g>
+
+  <!-- Average line (overall ~ 51.0%) -->
+  <!-- 51% => x = 320 + (1030-320)*0.51 = 682.1 -->
+  <line class="avg" x1="682.1" y1="110" x2="682.1" y2="610"/>
+  <g>
+    <rect x="820" y="585" width="220" height="36" rx="10" fill="#F9FAFB" stroke="#E5E7EB"/>
+    <line class="avg" x1="838" y1="603" x2="890" y2="603"/>
+    <text class="legend" x="900" y="607">Overall ~ 51.0%</text>
+  </g>
+
+  <!-- Bars (10 rows) -->
+  <!-- Layout -->
+  <!-- row height=46, bar height=22 -->
+  <!-- Start y=135 -->
+  <!-- Bar colors: green >=70 (#2E7D32), amber 40-69 (#F9A825), red <40 (#C62828) -->
+  <!-- Scale: width = 710 * pct/100 (since 1030-320 = 710) -->
+  <g>
+    <!-- 1 -->
+    <text class="label" x="60" y="150">Auth (Phone/OTP)</text>
+    <rect x="320" y="136" width="497.0" height="22" rx="8" fill="#2E7D32"/>
+    <text class="pct" x="825.0" y="152">70%</text>
+
+    <!-- 2 -->
+    <text class="label" x="60" y="196">Session/Logout</text>
+    <rect x="320" y="182" width="213.0" height="22" rx="8" fill="#C62828"/>
+    <text class="pct" x="541.0" y="198">30%</text>
+
+    <!-- 3 -->
+    <text class="label" x="60" y="242">Weather (online+offline)</text>
+    <rect x="320" y="228" width="603.5" height="22" rx="8" fill="#2E7D32"/>
+    <text class="pct" x="931.5" y="244">85%</text>
+
+    <!-- 4 -->
+    <text class="label" x="60" y="288">Crops Guide</text>
+    <rect x="320" y="274" width="568.0" height="22" rx="8" fill="#2E7D32"/>
+    <text class="pct" x="896.0" y="290">80%</text>
+
+    <!-- 5 -->
+    <text class="label" x="60" y="334">Orchards</text>
+    <rect x="320" y="320" width="426.0" height="22" rx="8" fill="#F9A825"/>
+    <text class="pct" x="754.0" y="336">60%</text>
+
+    <!-- 6 -->
+    <text class="label" x="60" y="380">Finance/Expense</text>
+    <rect x="320" y="366" width="532.5" height="22" rx="8" fill="#2E7D32"/>
+    <text class="pct" x="860.5" y="382">75%</text>
+
+    <!-- 7 -->
+    <text class="label" x="60" y="426">Routing/Architecture</text>
+    <rect x="320" y="412" width="390.5" height="22" rx="8" fill="#F9A825"/>
+    <text class="pct" x="718.5" y="428">55%</text>
+
+    <!-- 8 -->
+    <text class="label" x="60" y="472">Security (Rules/Secrets)</text>
+    <rect x="320" y="458" width="248.5" height="22" rx="8" fill="#C62828"/>
+    <text class="pct" x="576.5" y="474">35%</text>
+
+    <!-- 9 -->
+    <text class="label" x="60" y="518">Docs</text>
+    <rect x="320" y="504" width="106.5" height="22" rx="8" fill="#C62828"/>
+    <text class="pct" x="434.5" y="520">15%</text>
+
+    <!-- 10 -->
+    <text class="label" x="60" y="564">Tests/CI</text>
+    <rect x="320" y="550" width="35.5" height="22" rx="8" fill="#C62828"/>
+    <text class="pct" x="363.5" y="566">5%</text>
+  </g>
+
+  <text class="note" x="40" y="705">
+    Note: Ye percentages repo ke current code/state par estimate hain (features present vs missing, placeholders, security rules, tests, docs).
+  </text>
+</svg>
