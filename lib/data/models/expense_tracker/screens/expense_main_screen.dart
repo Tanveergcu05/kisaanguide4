@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:kisaanguide4/models/crop_land.dart';
 
 // --- DATA MODELS ---
 enum FarmType { baghaat, crops }
@@ -16,7 +17,8 @@ class ZaraiRecord {
   final String note;
   final EntryType type;
   final FarmType farmType;
-  final String subType;
+  final String subType; // Crop or Orchard Name
+  final String cropId; // Reference to CropLand ID
 
   ZaraiRecord({
     required this.id,
@@ -27,6 +29,7 @@ class ZaraiRecord {
     required this.type,
     required this.farmType,
     required this.subType,
+    this.cropId = "",
   });
 
   Map<String, dynamic> toJson() {
@@ -39,6 +42,7 @@ class ZaraiRecord {
       'type': type.name,
       'farmType': farmType.name,
       'subType': subType,
+      'cropId': cropId,
     };
   }
 
@@ -58,6 +62,7 @@ class ZaraiRecord {
         orElse: () => FarmType.crops,
       ),
       subType: (json['subType'] ?? '').toString(),
+      cropId: (json['cropId'] ?? '').toString(),
     );
   }
 }
@@ -69,40 +74,28 @@ class ExpenseMainScreen extends StatefulWidget {
   State<ExpenseMainScreen> createState() => _ExpenseMainScreenState();
 }
 
-class _ExpenseMainScreenState extends State<ExpenseMainScreen> with TickerProviderStateMixin {
-  // Selection States
-  FarmType selectedType = FarmType.crops;
-  String? selectedSubType; 
-  String? selectedExpenseCat;
+class _ExpenseMainScreenState extends State<ExpenseMainScreen> {
+  // Selection and State Variables
   EntryType selectedEntryType = EntryType.expense;
   DateTime selectedDate = DateTime.now();
   String searchQuery = "";
   
+  // Custom Linked Crop Selection
+  CropLand? selectedCropLink;
+
   // Controllers
   final TextEditingController _amountController = TextEditingController();
-  final TextEditingController _areaController = TextEditingController();
-  final TextEditingController _ageController = TextEditingController();
-  final TextEditingController _plantsController = TextEditingController(); 
   final TextEditingController _noteController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
 
   // Data Lists
   List<ZaraiRecord> recordsList = [];
+  List<CropLand> cropLandsList = [];
+  bool _isLoading = true;
 
   final NumberFormat _currency = NumberFormat.currency(locale: 'en_PK', symbol: 'Rs. ', decimalDigits: 0);
 
   // Constants
-  final List<String> orchardTypes = [
-    'Kinnow', 'Musami', 'Grapefruit', 'Meetha', 'Fruiter', 
-    'Lemon', 'Sangtra', 'Aam (Mango)', 'Amrood (Guava)', 'Khajoor'
-  ];
-
-  final List<String> cropTypes = [
-    'Gandum (Wheat)', 'Kapas (Cotton)', 'Makai (Maize)', 'Mongi (Mung Bean)', 
-    'Kamad (Sugarcane)', 'Rice (Chawal)', 'Channy (Gram)', 'Jao (Barley)', 
-    'Tilli (Sesame)', 'Bajra', 'Gwara', 'Canola', 'Sarson (Mustard)'
-  ];
-
   final List<String> expenseCategories = [
     'Seed & Nursery (Beej)',
     'Fertilizers (Khaad)',
@@ -122,9 +115,11 @@ class _ExpenseMainScreenState extends State<ExpenseMainScreen> with TickerProvid
     'Other Income'
   ];
 
-  // Premium Darker Green Theme Colors
-  final Color premiumDarkGreen = const Color(0xFF1E5E3A); 
-  final Color premiumMidGreen = const Color(0xFF2D8A4E);
+  String? selectedExpenseCat;
+
+  // Theme Colors
+  final Color premiumDarkGreen = const Color(0xFF003527); 
+  final Color premiumMidGreen = const Color(0xFFAC3400);
 
   String get _storageKey {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -134,21 +129,95 @@ class _ExpenseMainScreenState extends State<ExpenseMainScreen> with TickerProvid
   @override
   void initState() {
     super.initState();
-    _loadRecords();
+    _loadStateData();
   }
 
   @override
   void dispose() {
     _amountController.dispose();
-    _areaController.dispose();
-    _ageController.dispose();
-    _plantsController.dispose();
     _noteController.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
-  // Calculations
+  // Load both Finance Records and CropLands in unison
+  Future<void> _loadStateData() async {
+    setState(() => _isLoading = true);
+    final prefs = await SharedPreferences.getInstance();
+
+    // 1. Load CropLands List
+    final String? rawCrops = prefs.getString('crop_lands_v2');
+    List<CropLand> tempCrops = [];
+    if (rawCrops != null && rawCrops.trim().isNotEmpty) {
+      try {
+        final List<dynamic> jsonList = jsonDecode(rawCrops);
+        tempCrops = jsonList.map((c) => CropLand.fromJson(c)).toList();
+      } catch (e) {
+        debugPrint("Error loading crop lands in finance: $e");
+      }
+    }
+
+    // 2. Load Finance Records List
+    final rawFinance = prefs.getString(_storageKey);
+    List<ZaraiRecord> tempFinance = [];
+    if (rawFinance != null && rawFinance.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(rawFinance);
+        if (decoded is List) {
+          tempFinance = decoded
+              .whereType<Map>()
+              .map((m) => ZaraiRecord.fromJson(Map<String, dynamic>.from(m)))
+              .toList();
+        }
+      } catch (_) {}
+    }
+    tempFinance.sort((a, b) => b.date.compareTo(a.date));
+
+    setState(() {
+      cropLandsList = tempCrops;
+      recordsList = tempFinance;
+      _isLoading = false;
+    });
+  }
+
+  // Persist State to local store and synchronizing properties
+  Future<void> _persistStateData() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // 1. Save Finance Records
+    final dataFinance = recordsList.map((e) => e.toJson()).toList();
+    await prefs.setString(_storageKey, jsonEncode(dataFinance));
+
+    // 2. Save CropLands
+    final dataCrops = jsonEncode(cropLandsList.map((c) => c.toJson()).toList());
+    await prefs.setString('crop_lands_v2', dataCrops);
+
+    // Sync variables with standard values
+    await prefs.setDouble('land_crops', totalActiveCropsLand);
+    await prefs.setDouble('land_orchards', totalActiveOrchardsLand);
+    await prefs.setDouble('land_fallow', freeAcres);
+  }
+
+  // Active growing crops (where isHarvested == false)
+  List<CropLand> get activeCrops => cropLandsList.where((c) => !c.isHarvested).toList();
+
+  double get totalActiveCropsLand => cropLandsList
+      .where((c) => !c.isHarvested && !c.isOrchard)
+      .fold(0.0, (sum, item) => sum + item.acres);
+
+  double get totalActiveOrchardsLand => cropLandsList
+      .where((c) => !c.isHarvested && c.isOrchard)
+      .fold(0.0, (sum, item) => sum + item.acres);
+
+  double get freeAcres {
+    final double total = prefsLandTotal;
+    final double activeSum = cropLandsList.where((c) => !c.isHarvested).fold(0.0, (sum, item) => sum + item.acres);
+    final double free = total - activeSum;
+    return free < 0 ? 0.0 : free;
+  }
+
+  double prefsLandTotal = 12.0;
+
   double get totalExpenses => recordsList
       .where((r) => r.type == EntryType.expense)
       .fold(0, (sum, item) => sum + item.amount);
@@ -159,35 +228,7 @@ class _ExpenseMainScreenState extends State<ExpenseMainScreen> with TickerProvid
 
   double get netProfit => totalIncome - totalExpenses;
 
-  Future<void> _loadRecords() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_storageKey);
-      if (raw == null || raw.trim().isEmpty) return;
-
-      final decoded = jsonDecode(raw);
-      if (decoded is! List) return;
-
-      final loaded = decoded
-          .whereType<Map>()
-          .map((m) => ZaraiRecord.fromJson(Map<String, dynamic>.from(m)))
-          .toList();
-      loaded.sort((a, b) => b.date.compareTo(a.date));
-
-      if (!mounted) return;
-      setState(() => recordsList = loaded);
-    } catch (_) {
-      // Ignore corrupt cache; user can continue with fresh data.
-    }
-  }
-
-  Future<void> _persistRecords() async {
-    final prefs = await SharedPreferences.getInstance();
-    final data = recordsList.map((e) => e.toJson()).toList();
-    await prefs.setString(_storageKey, jsonEncode(data));
-  }
-
-  // Search Logic
+  // Search filter
   List<ZaraiRecord> get filteredRecords {
     if (searchQuery.isEmpty) return recordsList;
     return recordsList.where((r) => 
@@ -197,7 +238,6 @@ class _ExpenseMainScreenState extends State<ExpenseMainScreen> with TickerProvid
     ).toList();
   }
 
-  // Date Picker
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -208,18 +248,157 @@ class _ExpenseMainScreenState extends State<ExpenseMainScreen> with TickerProvid
     if (picked != null) setState(() => selectedDate = picked);
   }
 
+  // Addition of Entry: Handle dual-entry workflow
+  void _saveEntry() {
+    final amount = double.tryParse(_amountController.text.trim());
+    if (amount == null || amount <= 0) {
+      _showError("برائے مہربانی درست رقم درج کریں! (Please enter a valid amount)");
+      return;
+    }
+
+    if (selectedCropLink == null) {
+      _showError("برائے مہربانی فصل منتخب کریں! (Please select a Crop/Orchard)");
+      return;
+    }
+
+    if (selectedEntryType == EntryType.expense && selectedExpenseCat == null) {
+      _showError("برائے مہربانی کیٹیگری منتخب کریں! (Please select a category)");
+      return;
+    }
+
+    // Capture detail values
+    final String targetCropId = selectedCropLink!.id;
+    final String targetCropName = selectedCropLink!.cropName;
+    final bool orchardFlag = selectedCropLink!.isOrchard;
+
+    if (selectedEntryType == EntryType.expense) {
+      // 1) SAVE EXPENSE
+      setState(() {
+        recordsList.insert(0, ZaraiRecord(
+          id: '${DateTime.now().microsecondsSinceEpoch}',
+          category: selectedExpenseCat!,
+          amount: amount,
+          date: selectedDate,
+          note: _noteController.text.trim(),
+          type: EntryType.expense,
+          farmType: orchardFlag ? FarmType.baghaat : FarmType.crops,
+          subType: targetCropName,
+          cropId: targetCropId,
+        ));
+        _amountController.clear();
+        _noteController.clear();
+        selectedCropLink = null;
+        selectedExpenseCat = null;
+      });
+
+      _persistStateData();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("خرچہ کامیابی سے محفوظ ہوگیا! (Expense Saved Successfully)"),
+          backgroundColor: Color(0xFF003527),
+        ),
+      );
+    } else {
+      // 2) HARVEST INCOME STATE TRANSITION
+      // Complete state changes for the CropLand Entity
+      setState(() {
+        // Change CropLand attributes
+        final idx = cropLandsList.indexWhere((c) => c.id == targetCropId);
+        if (idx != -1) {
+          final oldCrop = cropLandsList[idx];
+          cropLandsList[idx] = CropLand(
+            id: oldCrop.id,
+            cropName: oldCrop.cropName,
+            acres: oldCrop.acres,
+            isOrchard: oldCrop.isOrchard,
+            cultivationType: oldCrop.cultivationType,
+            isHarvested: true,
+            income: amount,
+          );
+        }
+
+        // Save entry as income record
+        recordsList.insert(0, ZaraiRecord(
+          id: '${DateTime.now().microsecondsSinceEpoch}',
+          category: 'Fasal Sale (Aamdani)',
+          amount: amount,
+          date: selectedDate,
+          note: _noteController.text.isNotEmpty 
+              ? _noteController.text.trim() 
+              : "فصل کی کٹائی اور آمدنی کا اندراج",
+          type: EntryType.income,
+          farmType: orchardFlag ? FarmType.baghaat : FarmType.crops,
+          subType: targetCropName,
+          cropId: targetCropId,
+        ));
+
+        _amountController.clear();
+        _noteController.clear();
+        selectedCropLink = null;
+        selectedExpenseCat = null;
+      });
+
+      _persistStateData();
+
+      // Successful state alteration popup
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          icon: const Icon(Icons.check_circle_rounded, color: Colors.green, size: 50),
+          title: const Text(
+            "فصل کٹائی اور آمدنی مکمل!",
+            textAlign: TextAlign.center,
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          content: const Text(
+            "آمدنی کا کامیابی سے اندراج ہو گیا ہے۔ یہ فصل کٹائی ریکارڈ میں چلی گئی ہے اور اس کا رقبہ آزاد ہوکر کل رقبہ میں واپس شامل ہوگیا ہے!",
+            textAlign: TextAlign.center,
+          ),
+          actions: [
+            Center(
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF003527)),
+                child: const Text("ٹھیک ہے (OK)", style: TextStyle(color: Colors.white)),
+              ),
+            )
+          ],
+        ),
+      );
+    }
+  }
+
+  void _showError(String text) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(text),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator(color: Color(0xFF003527))),
+      );
+    }
+
+    final categories = selectedEntryType == EntryType.expense ? expenseCategories : incomeCategories;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF6F9F6),
       appBar: AppBar(
-        title: const Text("Zarai Expense Tracker"),
+        title: const Text("Khata Jaat & Amdani (Fasal)"),
         backgroundColor: premiumDarkGreen,
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
           IconButton(
-            tooltip: 'Clear all',
+            tooltip: 'Clear all history',
             onPressed: recordsList.isEmpty ? null : _confirmClearAll,
             icon: const Icon(Icons.delete_sweep_rounded),
           ),
@@ -231,70 +410,153 @@ class _ExpenseMainScreenState extends State<ExpenseMainScreen> with TickerProvid
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSectionHeader("1. Type Select Karein"),
-            _buildTypeToggle(),
-            const SizedBox(height: 20),
+            _buildSectionHeader("1. اندراج کا انتخاب (Kharcha vs Amdani)"),
+            _buildEntryTypeToggle(),
+            const SizedBox(height: 16),
 
-            // --- ALL IN ONE COHESIVE ANIMATION BLOCK ---
-            AnimatedSize(
-              duration: const Duration(milliseconds: 600),
-              curve: Curves.easeInOutCubic,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSectionHeader("2. Detail Bharrein"),
-                  
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 600),
-                    switchInCurve: Curves.easeInOutCubic, // Sahi parameter fixed here
-                    switchOutCurve: Curves.easeInOutCubic, // Sahi parameter fixed here
-                    layoutBuilder: (Widget? currentChild, List<Widget> previousChildren) {
-                      return Stack(
-                        alignment: Alignment.topCenter,
-                        children: <Widget>[
-                          ...previousChildren,
-                          ?currentChild,
-                        ],
-                      );
-                    },
-                    transitionBuilder: (Widget child, Animation<double> animation) {
-                      final offsetAnimation = Tween<Offset>(
-                        begin: const Offset(0.0, -0.1), 
-                        end: Offset.zero,
-                      ).animate(animation);
+            _buildSectionHeader("2. فارم کی تفصیلات (Detail Form)"),
+            Card(
+              color: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16), 
+                side: BorderSide(color: Colors.grey.shade200),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    // A. Linked Crop Selection Dropdown
+                    DropdownButtonFormField<CropLand>(
+                      value: selectedCropLink,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: "فصل منتخب کریں (Select Active Crop)",
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.grass_rounded, color: Colors.green),
+                      ),
+                      hint: const Text("کاشت شدہ فصل منتخب کریں"),
+                      items: activeCrops.map((crop) {
+                        return DropdownMenuItem<CropLand>(
+                          value: crop,
+                          child: Text(
+                            "${crop.cropName} (${crop.acres.toStringAsFixed(1)} Akar) ${crop.isOrchard ? '• Bagh' : ''}",
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (CropLand? val) {
+                        setState(() {
+                          selectedCropLink = val;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
 
-                      return FadeTransition(
-                        opacity: animation,
-                        child: SlideTransition(
-                          position: offsetAnimation,
-                          child: child,
+                    // B. Category Dropdown
+                    if (selectedEntryType == EntryType.expense) ...[
+                      DropdownButtonFormField<String>(
+                        value: selectedExpenseCat,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: "کیٹیگری منتخب کریں (Select Category)",
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.category_rounded, color: Colors.indigo),
                         ),
-                      );
-                    },
-                    child: selectedType == FarmType.baghaat
-                        ? _buildFarmDetailCard(key: const ValueKey('baghaat_sync_view'))
-                        : _buildFarmDetailCard(key: const ValueKey('crops_sync_view')),
-                  ),
-                ],
+                        hint: const Text("خرچے کی کیٹگری منتخب کریں"),
+                        items: categories.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                        onChanged: (val) => setState(() => selectedExpenseCat = val),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
+                    // C. Date picker
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        "تاریخ (Date): ${selectedDate.day}/${selectedDate.month}/${selectedDate.year}",
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      trailing: CircleAvatar(
+                        backgroundColor: premiumMidGreen.withOpacity(0.1),
+                        child: Icon(Icons.calendar_today, color: premiumMidGreen, size: 18),
+                      ),
+                      onTap: () => _selectDate(context),
+                    ),
+                    const Divider(),
+                    const SizedBox(height: 8),
+
+                    // D. Amount (PKR) input
+                    TextField(
+                      controller: _amountController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: selectedEntryType == EntryType.expense 
+                            ? "خرچے کی رقم (Expense Amount Rs.)" 
+                            : "فصل کی کل آمدنی (Final Sales Value Rs.)",
+                        prefixText: "Rs. ",
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.payments_rounded, color: Colors.green),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // E. Remarks / Note
+                    TextField(
+                      controller: _noteController,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                        labelText: "کیسان نوٹ (Remarks/Tafseel)",
+                        border: const OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.sticky_note_2_rounded, color: Colors.grey),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // F. Submit Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton.icon(
+                        onPressed: _saveEntry,
+                        icon: Icon(
+                          selectedEntryType == EntryType.expense 
+                              ? Icons.check_circle_outline 
+                              : Icons.monetization_on_rounded, 
+                          color: Colors.white,
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: selectedEntryType == EntryType.expense 
+                              ? premiumDarkGreen 
+                              : const Color(0xFF0F9D58), 
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        label: Text(
+                          selectedEntryType == EntryType.expense 
+                              ? "خرچہ محفوظ کریں (Save Expense)" 
+                              : "فصل کٹائی اور آمدنی درج کریں",
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
 
-            _buildSectionHeader("3. Kharcha / Aamdani Add Karein"),
-            _buildEntryForm(),
-            const SizedBox(height: 20),
-
-            _buildSectionHeader("4. Summary (Profit/Loss)"),
+            _buildSectionHeader("3. موازنہ اور منافع (Agricultural Balance)"),
             _buildSummaryCard(),
-            const SizedBox(height: 25),
+            const SizedBox(height: 24),
 
-            _buildSectionHeader("5. Record Search Karein"),
+            _buildSectionHeader("4. ہسٹری تلاش کریں (Search History)"),
             _buildSearchBar(),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
 
-            _buildSectionHeader("6. Mukammal History"),
+            _buildSectionHeader("5. ریکارڈز کی مکمل تفصیلات (Full History)"),
             _buildHistoryTable(),
-            const SizedBox(height: 50),
+            const SizedBox(height: 60),
           ],
         ),
       ),
@@ -306,261 +568,90 @@ class _ExpenseMainScreenState extends State<ExpenseMainScreen> with TickerProvid
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
       child: Text(
         title,
-        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: premiumDarkGreen),
+        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: premiumDarkGreen),
       ),
     );
   }
 
-  Widget _buildTypeToggle() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        double width = constraints.maxWidth;
-        return Container(
-          height: 54,
-          width: width,
-          padding: const EdgeInsets.all(4), 
-          decoration: BoxDecoration(
-            color: Colors.grey.shade100,
-            borderRadius: BorderRadius.circular(30), 
-            border: Border.all(color: Colors.grey.shade200),
-          ),
-          child: Stack(
-            children: [
-              AnimatedAlign(
-                duration: const Duration(milliseconds: 500),
-                curve: Curves.easeInOutCubic, 
-                alignment: selectedType == FarmType.baghaat
-                    ? Alignment.centerLeft
-                    : Alignment.centerRight,
-                child: Container(
-                  width: (width - 8) / 2,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: premiumMidGreen, 
-                    borderRadius: BorderRadius.circular(25), 
-                    boxShadow: [
-                      BoxShadow(
-                        color: premiumMidGreen.withOpacity(0.25),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Row(
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () {
-                        if (selectedType != FarmType.baghaat) {
-                          setState(() {
-                            selectedType = FarmType.baghaat;
-                            selectedSubType = null;
-                          });
-                        }
-                      },
-                      child: Center(
-                        child: AnimatedDefaultTextStyle(
-                          duration: const Duration(milliseconds: 250),
-                          style: TextStyle(
-                            color: selectedType == FarmType.baghaat ? Colors.white : Colors.black54,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                          child: const Text("Baghaat"),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () {
-                        if (selectedType != FarmType.crops) {
-                          setState(() {
-                            selectedType = FarmType.crops;
-                            selectedSubType = null;
-                          });
-                        }
-                      },
-                      child: Center(
-                        child: AnimatedDefaultTextStyle(
-                          duration: const Duration(milliseconds: 250),
-                          style: TextStyle(
-                            color: selectedType == FarmType.crops ? Colors.white : Colors.black54,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                          child: const Text("Faslein"),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildFarmDetailCard({required Key key}) {
-    return Card(
-      key: key,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15), 
-        side: BorderSide(color: Colors.grey.shade200),
+  Widget _buildEntryTypeToggle() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Colors.grey.shade200),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DropdownButtonFormField<String>(
-              initialValue: selectedSubType,
-              isExpanded: true,
-              hint: const Text("Fasal ya Bagh ki Qism"),
-              items: (selectedType == FarmType.baghaat ? orchardTypes : cropTypes)
-                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                  .toList(),
-              onChanged: (val) => setState(() => selectedSubType = val),
-              decoration: const InputDecoration(border: OutlineInputBorder()),
+      child: Row(
+        children: [
+          Expanded(
+            child: _pillButton(
+              isActive: selectedEntryType == EntryType.expense,
+              label: 'فصل کا خرچہ (Expense)',
+              icon: Icons.remove_circle_outline_rounded,
+              activeColor: Colors.redAccent,
+              onTap: () {
+                setState(() {
+                  selectedEntryType = EntryType.expense;
+                  selectedCropLink = null;
+                  selectedExpenseCat = null;
+                });
+              },
             ),
-            const SizedBox(height: 15),
-            
-            if (selectedType == FarmType.baghaat) ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _areaController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: "Area (Acre)", border: OutlineInputBorder()),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: _plantsController, 
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: "Podon ki Tadad", border: OutlineInputBorder()),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _ageController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: "Bagh ki Umar (Saal)", border: OutlineInputBorder()),
-              ),
-            ] else ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _areaController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: "Area (Acre)", border: OutlineInputBorder()),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Spacer(),
-                ],
-              ),
-            ],
-          ],
+          ),
+          Expanded(
+            child: _pillButton(
+              isActive: selectedEntryType == EntryType.income,
+              label: 'آمدنی اور کٹائی (Income)',
+              icon: Icons.add_circle_outline_rounded,
+              activeColor: Colors.green,
+              onTap: () {
+                setState(() {
+                  selectedEntryType = EntryType.income;
+                  selectedCropLink = null;
+                  selectedExpenseCat = 'Fasal Sale (Aamdani)';
+                });
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pillButton({
+    required bool isActive,
+    required String label,
+    required IconData icon,
+    required Color activeColor,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 44,
+        decoration: BoxDecoration(
+          color: isActive ? activeColor.withOpacity(0.12) : Colors.transparent,
+          borderRadius: BorderRadius.circular(26),
         ),
-      ),
-    );
-  }
-
-  Widget _buildEntryForm() {
-    final categories = selectedEntryType == EntryType.expense ? expenseCategories : incomeCategories;
-    return Card(
-      color: Colors.white,
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: BorderSide(color: Colors.grey.shade200)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _buildEntryTypeToggle(),
-            const SizedBox(height: 10),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text("Tareekh: ${selectedDate.day}/${selectedDate.month}/${selectedDate.year}"),
-              trailing: Icon(Icons.calendar_today, color: premiumMidGreen),
-              onTap: () => _selectDate(context),
-            ),
-            const Divider(),
-            DropdownButtonFormField<String>(
-              isExpanded: true,
-              hint: const Text("Category Chunrein"),
-              value: categories.contains(selectedExpenseCat) ? selectedExpenseCat : null,
-              items: categories.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-              onChanged: (val) => setState(() => selectedExpenseCat = val),
-              decoration: const InputDecoration(border: OutlineInputBorder()),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _amountController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: "Raqam (PKR)", prefixText: "Rs. ", border: OutlineInputBorder()),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _noteController,
-              maxLines: 2,
-              decoration: const InputDecoration(labelText: "Kisaan Note (Tafseel)", border: OutlineInputBorder()),
-            ),
-            const SizedBox(height: 15),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _saveEntry,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: premiumMidGreen, 
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: Text(selectedEntryType == EntryType.expense ? "Kharcha Save Karein" : "Aamdani Save Karein"),
+            Icon(icon, size: 18, color: isActive ? activeColor : Colors.black45),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+                color: isActive ? activeColor : Colors.black54,
               ),
             ),
           ],
         ),
       ),
     );
-  }
-
-  void _saveEntry() {
-    final amount = double.tryParse(_amountController.text.trim());
-    if (amount == null || amount <= 0 || selectedExpenseCat == null || selectedSubType == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Tamam fields bharrein!")));
-      return;
-    }
-
-    setState(() {
-      recordsList.insert(0, ZaraiRecord(
-        id: '${DateTime.now().microsecondsSinceEpoch}_${recordsList.length}',
-        category: selectedExpenseCat!,
-        amount: amount,
-        date: selectedDate,
-        note: _noteController.text,
-        type: selectedEntryType,
-        farmType: selectedType,
-        subType: selectedSubType!,
-      ));
-      _amountController.clear();
-      _noteController.clear();
-    });
-
-    _persistRecords();
   }
 
   Widget _buildSummaryCard() {
@@ -569,22 +660,22 @@ class _ExpenseMainScreenState extends State<ExpenseMainScreen> with TickerProvid
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [premiumDarkGreen, premiumMidGreen]), 
-        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(colors: [premiumDarkGreen, const Color(0xFF0D5E4A)]), 
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         children: [
-          _summaryRow("Kul Kharcha:", totalExpenses, Colors.redAccent.shade100),
+          _summaryRow("کل اخراجات (Total Expenses):", totalExpenses, Colors.redAccent.shade100),
           const Divider(color: Colors.white24),
-          _summaryRow("Kul Aamdani:", totalIncome, Colors.greenAccent.shade100),
+          _summaryRow("کل آمدنی (Total Income):", totalIncome, Colors.greenAccent.shade100),
           const Divider(color: Colors.white24),
-          _summaryRow("Net Munafa:", netProfit, netProfit >= 0 ? Colors.greenAccent.shade400 : Colors.orangeAccent, isBold: true),
+          _summaryRow("خالص منافع / نقصان (Profit):", netProfit, netProfit >= 0 ? Colors.greenAccent.shade400 : Colors.orangeAccent, isBold: true),
           const SizedBox(height: 14),
           Row(
             children: [
               const Icon(Icons.pie_chart_rounded, color: Colors.white70, size: 16),
               const SizedBox(width: 8),
-              const Text("Income vs Expense", style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+              const Text("آمدنی بمقابلہ اخراجات کا گراف", style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600, fontSize: 13)),
             ],
           ),
           const SizedBox(height: 8),
@@ -606,8 +697,8 @@ class _ExpenseMainScreenState extends State<ExpenseMainScreen> with TickerProvid
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
-        Text(_currency.format(val), style: TextStyle(color: color, fontSize: isBold ? 20 : 16, fontWeight: isBold ? FontWeight.bold : FontWeight.normal)),
+        Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500, fontSize: 13)),
+        Text(_currency.format(val), style: TextStyle(color: color, fontSize: isBold ? 18 : 15, fontWeight: isBold ? FontWeight.bold : FontWeight.normal)),
       ],
     );
   }
@@ -617,8 +708,8 @@ class _ExpenseMainScreenState extends State<ExpenseMainScreen> with TickerProvid
       controller: _searchController,
       onChanged: (val) => setState(() => searchQuery = val),
       decoration: InputDecoration(
-        hintText: "History mein talash karein...",
-        prefixIcon: Icon(Icons.search, color: premiumMidGreen),
+        hintText: "ہسٹری میں تلاش کریں (wheat, seed etc)...",
+        prefixIcon: Icon(Icons.search, color: premiumDarkGreen),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         filled: true,
         fillColor: Colors.white,
@@ -627,21 +718,30 @@ class _ExpenseMainScreenState extends State<ExpenseMainScreen> with TickerProvid
   }
 
   Widget _buildHistoryTable() {
-    if (filteredRecords.isEmpty) return const Center(child: Padding(padding: EdgeInsets.all(20), child: Text("Koi record nahi mila.")));
+    final records = filteredRecords;
+    if (records.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32),
+          child: Text("کوئی ریکارڈ دستیاب نہیں ہے۔", style: TextStyle(fontStyle: FontStyle.italic)),
+        ),
+      );
+    }
     return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: Colors.grey.shade200)),
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade200)),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: DataTable(
           columns: const [
-            DataColumn(label: Text('Tareekh')),
-            DataColumn(label: Text('Fasal/Bagh')),
-            DataColumn(label: Text('Category')),
-            DataColumn(label: Text('Raqam')),
-            DataColumn(label: Text('Note')),
-            DataColumn(label: Text('Actions')),
+            DataColumn(label: Text('تاریخ')),
+            DataColumn(label: Text('فصل کا نام')),
+            DataColumn(label: Text('نوعیت')),
+            DataColumn(label: Text('کل رقم')),
+            DataColumn(label: Text('نوٹ (Kisaan Note)')),
+            DataColumn(label: Text('عمل (Action)')),
           ],
-          rows: filteredRecords.map((r) => DataRow(cells: [
+          rows: records.map((r) => DataRow(cells: [
             DataCell(Text("${r.date.day}/${r.date.month}/${r.date.year}")),
             DataCell(Text(r.subType)),
             DataCell(Text(r.category)),
@@ -649,100 +749,15 @@ class _ExpenseMainScreenState extends State<ExpenseMainScreen> with TickerProvid
               _currency.format(r.amount),
               style: TextStyle(color: r.type == EntryType.income ? Colors.green : Colors.red, fontWeight: FontWeight.bold),
             )),
-            DataCell(SizedBox(width: 180, child: Text(r.note.isEmpty ? '-' : r.note, overflow: TextOverflow.ellipsis))),
-            DataCell(Row(
-              children: [
-                IconButton(
-                  tooltip: 'Edit',
-                  onPressed: () => _openEditDialog(r),
-                  icon: const Icon(Icons.edit_rounded, size: 18),
-                ),
-                IconButton(
-                  tooltip: 'Delete',
-                  onPressed: () => _confirmDelete(r),
-                  icon: const Icon(Icons.delete_rounded, size: 18, color: Colors.redAccent),
-                ),
-              ],
-            )),
-          ])).toList(),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEntryTypeToggle() {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _pillButton(
-              isActive: selectedEntryType == EntryType.expense,
-              label: 'Kharcha',
-              icon: Icons.remove_circle_outline_rounded,
-              activeColor: Colors.redAccent,
-              onTap: () {
-                setState(() {
-                  selectedEntryType = EntryType.expense;
-                  selectedExpenseCat = null;
-                });
-              },
-            ),
-          ),
-          Expanded(
-            child: _pillButton(
-              isActive: selectedEntryType == EntryType.income,
-              label: 'Aamdani',
-              icon: Icons.add_circle_outline_rounded,
-              activeColor: Colors.green,
-              onTap: () {
-                setState(() {
-                  selectedEntryType = EntryType.income;
-                  selectedExpenseCat = null;
-                });
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _pillButton({
-    required bool isActive,
-    required String label,
-    required IconData icon,
-    required Color activeColor,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        height: 44,
-        decoration: BoxDecoration(
-          color: isActive ? activeColor.withOpacity(0.15) : Colors.transparent,
-          borderRadius: BorderRadius.circular(26),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 18, color: isActive ? activeColor : Colors.black45),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: isActive ? activeColor : Colors.black54,
+            DataCell(SizedBox(width: 150, child: Text(r.note.isEmpty ? '-' : r.note, overflow: TextOverflow.ellipsis))),
+            DataCell(
+              IconButton(
+                tooltip: 'Delete Entry',
+                onPressed: () => _confirmDelete(r),
+                icon: const Icon(Icons.delete_rounded, size: 18, color: Colors.redAccent),
               ),
             ),
-          ],
+          ])).toList(),
         ),
       ),
     );
@@ -752,164 +767,35 @@ class _ExpenseMainScreenState extends State<ExpenseMainScreen> with TickerProvid
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete record?'),
-        content: Text('Category: ${record.category}\nAmount: ${_currency.format(record.amount)}'),
+        title: const Text('ڈیلیٹ کریں؟'),
+        content: Text('نام: ${record.subType}\nشرح: ${record.category}\nرقم: ${_currency.format(record.amount)}'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('کینسل')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('ہٹائیں', style: TextStyle(color: Colors.red))),
         ],
       ),
     );
     if (ok != true) return;
 
     setState(() => recordsList.removeWhere((r) => r.id == record.id));
-    _persistRecords();
+    _persistStateData();
   }
 
   Future<void> _confirmClearAll() async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Clear all records?'),
-        content: const Text('This will remove all saved finance records from this device.'),
+        title: const Text('تمام ریکارڈز صاف کریں؟'),
+        content: const Text('کیا آپ واقعی اپنے تمام کھاتہ ریکارڈز صاف کرنا چاہتے ہیں؟ یہ عمل واپس نہیں لیا جا سکتا۔'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Clear')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('کینسل')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('صاف کریں', style: TextStyle(color: Colors.red))),
         ],
       ),
     );
     if (ok != true) return;
 
     setState(() => recordsList.clear());
-    _persistRecords();
-  }
-
-  Future<void> _openEditDialog(ZaraiRecord record) async {
-    final amountController = TextEditingController(text: record.amount.toStringAsFixed(0));
-    final noteController = TextEditingController(text: record.note);
-    EntryType editType = record.type;
-    DateTime editDate = record.date;
-    String editCategory = record.category;
-
-    final categoriesFor = (EntryType t) => t == EntryType.expense ? expenseCategories : incomeCategories;
-
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setLocalState) {
-            final cats = categoriesFor(editType);
-            return AlertDialog(
-              title: const Text('Edit record'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<EntryType>(
-                            value: editType,
-                            items: const [
-                              DropdownMenuItem(value: EntryType.expense, child: Text('Kharcha')),
-                              DropdownMenuItem(value: EntryType.income, child: Text('Aamdani')),
-                            ],
-                            onChanged: (v) {
-                              if (v == null) return;
-                              setLocalState(() {
-                                editType = v;
-                                final newCats = categoriesFor(editType);
-                                if (!newCats.contains(editCategory)) {
-                                  editCategory = newCats.first;
-                                }
-                              });
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () async {
-                              final picked = await showDatePicker(
-                                context: context,
-                                initialDate: editDate,
-                                firstDate: DateTime(2020),
-                                lastDate: DateTime(2101),
-                              );
-                              if (picked == null) return;
-                              setLocalState(() => editDate = picked);
-                            },
-                            icon: const Icon(Icons.calendar_today, size: 16),
-                            label: Text("${editDate.day}/${editDate.month}/${editDate.year}"),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    DropdownButtonFormField<String>(
-                      value: cats.contains(editCategory) ? editCategory : cats.first,
-                      items: cats.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                      onChanged: (v) => setLocalState(() => editCategory = v ?? editCategory),
-                      decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: amountController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Amount', prefixText: 'Rs. ', border: OutlineInputBorder()),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: noteController,
-                      maxLines: 2,
-                      decoration: const InputDecoration(labelText: 'Note', border: OutlineInputBorder()),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-                TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    if (ok != true) {
-      amountController.dispose();
-      noteController.dispose();
-      return;
-    }
-
-    final newAmount = double.tryParse(amountController.text.trim());
-    if (newAmount == null || newAmount <= 0) {
-      amountController.dispose();
-      noteController.dispose();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Invalid amount')));
-      return;
-    }
-
-    setState(() {
-      final idx = recordsList.indexWhere((r) => r.id == record.id);
-      if (idx == -1) return;
-      recordsList[idx] = ZaraiRecord(
-        id: record.id,
-        category: editCategory,
-        amount: newAmount,
-        date: editDate,
-        note: noteController.text,
-        type: editType,
-        farmType: record.farmType,
-        subType: record.subType,
-      );
-      recordsList.sort((a, b) => b.date.compareTo(a.date));
-    });
-    _persistRecords();
-
-    amountController.dispose();
-    noteController.dispose();
+    _persistStateData();
   }
 }

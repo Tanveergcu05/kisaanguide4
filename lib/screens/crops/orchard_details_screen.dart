@@ -125,7 +125,7 @@ class _OrchardDetailsScreenState extends State<OrchardDetailsScreen> {
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        backgroundColor: Colors.green[700],
+        backgroundColor: const Color(0xFF003527),
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
@@ -171,7 +171,7 @@ class _OrchardDetailsScreenState extends State<OrchardDetailsScreen> {
                   borderRadius: BorderRadius.circular(15),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
+                      color: Colors.black.withValues(alpha: 0.04),
                       blurRadius: 8,
                       offset: const Offset(0, 3),
                     ),
@@ -181,7 +181,7 @@ class _OrchardDetailsScreenState extends State<OrchardDetailsScreen> {
                   leading: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.green[500]!.withOpacity(0.1),
+                      color: const Color(0xFF003527).withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Text(
@@ -216,8 +216,8 @@ class _OrchardDetailsScreenState extends State<OrchardDetailsScreen> {
                             child: Text(
                               isEnglish ? "Water & Fertilizer Details:" : "کھاد اور پانی کی تفصیلات:",
                               textAlign: isEnglish ? TextAlign.left : TextAlign.right,
-                              style: TextStyle(
-                                color: Colors.green[700],
+                              style: const TextStyle(
+                                color: Color(0xFF003527),
                                 fontWeight: FontWeight.bold,
                                 fontSize: 14,
                               ),
@@ -260,8 +260,8 @@ class _OrchardDetailsScreenState extends State<OrchardDetailsScreen> {
               height: _isCircleWeather ? 65 : 130,
               padding: EdgeInsets.all(_isCircleWeather ? 4 : 16),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.green[700]!, Colors.green[600]!],
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF003527), Color(0xFF005B41)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -269,7 +269,7 @@ class _OrchardDetailsScreenState extends State<OrchardDetailsScreen> {
                 borderRadius: _isCircleWeather ? null : BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.green[900]!.withOpacity(0.3),
+                    color: const Color(0xFF003527).withValues(alpha: 0.3),
                     blurRadius: 12,
                     offset: const Offset(0, 6),
                   ),
@@ -312,7 +312,7 @@ class _OrchardDetailsScreenState extends State<OrchardDetailsScreen> {
                               const SizedBox(height: 4),
                               Text(
                                 isEnglish ? weatherConditionEng : weatherConditionUrdu,
-                                style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 14),
+                                style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 14),
                               ),
                               const SizedBox(height: 6),
                               Row(

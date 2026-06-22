@@ -23,11 +23,11 @@ class _AddCropScreenState extends State<AddCropScreen> with TickerProviderStateM
   int _selectedCropIndex = 0;
   late TabController _tabController;
 
-  // Premium Agriculture Theme Color Palette (Green & Yellow Scheme)
-  static const Color primaryGreen = Color(0xFF2E6F40);   // Deep Premium Rich Green
-  static const Color accentYellow = Color(0xFFFBC02D);   // Vibrant Mustard Gold/Yellow
-  static const Color lightYellow = Color(0xFFFFFDE7);    // Soft Background Cream Yellow
-  static const Color darkGrey = Color(0xFF2D312E);       // Professional Text Grey
+  // Premium Agriculture Theme Color Palette (Green & Yellow/Rust Scheme)
+  static const Color primaryGreen = Color(0xFF003527);   // Deep Forest Premium Green
+  static const Color accentYellow = Color(0xFFAC3400);   // Elegant Warm Earth Terracotta Orange
+  static const Color lightYellow = Color(0xFFF1F5F2);    // Clean Soft Mint Background Grey
+  static const Color darkGrey = Color(0xFF1E2421);       // Rich Soft Charcoal Dark Grey
 
   final String _apiKey = AppConfig.openWeatherApiKey;
 
@@ -612,7 +612,7 @@ class _AddCropScreenState extends State<AddCropScreen> with TickerProviderStateM
         border: Border.all(color: accentYellow, width: 1.5), // Yellow Frame Accenting
         boxShadow: [
           BoxShadow(
-            color: primaryGreen.withOpacity(0.25),
+            color: primaryGreen.withValues(alpha: 0.25),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -699,7 +699,7 @@ class _AddCropScreenState extends State<AddCropScreen> with TickerProviderStateM
               color: isSelected ? lightYellow : Colors.white,
               borderRadius: BorderRadius.circular(15),
               border: Border.all(color: isSelected ? accentYellow : Colors.black12, width: isSelected ? 2 : 1),
-              boxShadow: isSelected ? [BoxShadow(color: accentYellow.withOpacity(0.2), blurRadius: 4)] : [],
+              boxShadow: isSelected ? [BoxShadow(color: accentYellow.withValues(alpha: 0.2), blurRadius: 4)] : [],
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,

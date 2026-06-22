@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; 
-import 'package:shared_preferences/shared_preferences.dart'; // Local storage ke liye import kiya gaya hai
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/app_colors.dart';
 import 'user_details_screen.dart';
-// Agar dashboard screen ka path bilkul yahi hai to theek, warna sahi path set kar lijiye ga.
-import '../home/dashboard_screen.dart'; 
+import '../home/dashboard_screen.dart';
 
 class OTPVerificationScreen extends StatefulWidget {
   final String verificationId;
@@ -39,11 +38,11 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
   }
 
   void verifyOTP() async {
-    String otp = _controllers.map((controller) => controller.text).join();
+    String otp = _controllers.map((controller) => controller.text).join().trim();
 
     if (otp.length < 6) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter all 6 digits')),
+        const SnackBar(content: Text('براہ کرم تمام 6 ہندسے درج کریں')),
       );
       return;
     }
@@ -58,27 +57,22 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
         smsCode: otp,
       );
 
-      // Firebase Auth se sign in kar rahe hain
       UserCredential userCredential = await _auth.signInWithCredential(credential);
       User? user = userCredential.user;
 
       if (user != null && mounted) {
-        // Firestore mein check kar rahe hain ke user ka data pehle se hai ya nahi
         DocumentSnapshot userDoc = await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
             .get();
 
-        // Local storage (SharedPreferences) initialize ki ja rahi hai
         SharedPreferences prefs = await SharedPreferences.getInstance();
 
         setState(() {
           isLoading = false;
         });
 
-        // FIXED CONDITION LOGIC WITH LOCAL STORAGE:
         if (userDoc.exists && userDoc.data() != null) {
-          // PURANA USER: Local storage me login state true save karein taake agli baar direct dashboard khule
           await prefs.setBool('isLoggedIn', true);
 
           if (mounted) {
@@ -89,8 +83,6 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
             );
           }
         } else {
-          // NAYA USER: Agar details screen par bhi ja raha hai, tab bhi hum login state true kar dete hain 
-          // taake registeration ke dauran app restart ho tab bhi user setup poora kar sake ya dashboard par ja sake
           await prefs.setBool('isLoggedIn', true);
 
           if (mounted) {
@@ -108,7 +100,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invalid OTP or Verification Failed. Please try again.')),
+          const SnackBar(content: Text('غلط کوڈ یا تصدیق ناکام ہو گئی۔ براہ کرم دوبارہ کوشش کریں۔')),
         );
       }
     }
@@ -117,154 +109,158 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.gradientBottom,
-      resizeToAvoidBottomInset: true,
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color.fromARGB(255, 48, 177, 55), AppColors.gradientBottom],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: SafeArea(
-          bottom: false,
-          child: CustomScrollView(
-            slivers: [
-              SliverToBoxAdapter(
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 10, left: 10),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: IconButton(
-                          icon: const Icon(Icons.arrow_back, color: Colors.white),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                      ),
-                    ),
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
-                      width: double.infinity,
-                      child: const Icon(
-                        Icons.verified_user_rounded, 
-                        size: 90, 
-                        color: Colors.white
-                      ),
-                    ),
-                    const SizedBox(height: 45), 
-                  ],
-                ),
-              ),
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.only(top: 40, left: 30, right: 30, bottom: 40),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.95),
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(40),
-                      topRight: Radius.circular(40),
-                    ),
-                    boxShadow: const [
-                      BoxShadow(color: Colors.black12, blurRadius: 20, spreadRadius: 5),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Center(
-                        child: Text(
-                          "Verify 6-Digit Code",
-                          style: TextStyle(
-                            fontSize: 20, 
-                            fontWeight: FontWeight.bold, 
-                            color: AppColors.primaryGreen
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Center(
-                        child: Text(
-                          "Sent to ${widget.phoneNumber}", 
-                          style: TextStyle(fontSize: 14, color: Colors.grey.shade600, fontWeight: FontWeight.w500)
-                        ),
-                      ),
-                      const SizedBox(height: 35),
-                      
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: List.generate(6, (index) => _buildOTPBox(index)),
-                      ),
-                      
-                      const SizedBox(height: 15),
-                      Center(
-                        child: TextButton(
-                          onPressed: () {},
-                          child: const Text("Resend OTP", style: TextStyle(color: AppColors.primaryGreen, fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                      
-                      const SizedBox(height: 20),
-                      
-                      SizedBox(
-                        width: double.infinity,
-                        height: 58,
-                        child: ElevatedButton(
-                          onPressed: isLoading ? null : verifyOTP,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primaryGreen,
-                            elevation: 5,
-                            shadowColor: AppColors.primaryGreen.withValues(alpha: 0.4),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)), 
-                          ),
-                          child: isLoading
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text(
-                                "Verify & Proceed", 
-                                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)
-                              ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
+      backgroundColor: const Color(0xFFF8F9FA),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF003527)),
+          onPressed: () => Navigator.pop(context),
         ),
       ),
-    );
-  }
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
+            // Agriculture Icon badge
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: const Color(0xFF003527),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  )
+                ],
+              ),
+              child: const Icon(Icons.agriculture, color: Colors.white, size: 44),
+            ),
+            const SizedBox(height: 32),
 
-  Widget _buildOTPBox(int index) {
-    return Container(
-      width: 44, 
-      height: 58,
-      decoration: BoxDecoration(
-        color: AppColors.softGrey,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: TextField(
-        controller: _controllers[index],
-        focusNode: _focusNodes[index],
-        onChanged: (value) {
-          if (value.length == 1 && index < 5) {
-            FocusScope.of(context).requestFocus(_focusNodes[index + 1]);
-          }
-          if (value.isEmpty && index > 0) {
-            FocusScope.of(context).requestFocus(_focusNodes[index - 1]);
-          }
-        },
-        textAlign: TextAlign.center,
-        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-        keyboardType: TextInputType.number,
-        maxLength: 1,
-        decoration: const InputDecoration(counterText: "", border: InputBorder.none),
+            // OTP Box Card widget
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.03),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  )
+                ],
+              ),
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                children: [
+                  const Text(
+                    'تصدیق',
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF003527),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'ہم نے آپ کے نمبر ${widget.phoneNumber} پر کوڈ بھیجا ہے',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.grey,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Pin Code cells grid
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: List.generate(6, (i) {
+                      return SizedBox(
+                        width: 42,
+                        child: TextField(
+                          controller: _controllers[i],
+                          focusNode: _focusNodes[i],
+                          keyboardType: TextInputType.number,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          maxLength: 1,
+                          decoration: InputDecoration(
+                            counterText: '',
+                            contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                            border: OutlineInputBorder(
+                              borderRadius: const BorderRadius.all(Radius.circular(12)),
+                              borderSide: BorderSide(color: Colors.grey.shade300),
+                            ),
+                            focusedBorder: const OutlineInputBorder(
+                              borderRadius: BorderRadius.all(Radius.circular(12)),
+                              borderSide: BorderSide(color: Color(0xFF003527), width: 1.8),
+                            ),
+                          ),
+                          onChanged: (val) {
+                            if (val.isNotEmpty && i < 5) {
+                               _focusNodes[i + 1].requestFocus();
+                            } else if (val.isEmpty && i > 0) {
+                               _focusNodes[i - 1].requestFocus();
+                            }
+                          },
+                        ),
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Actions resend template
+                  TextButton.icon(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('کوڈ دوبارہ درخواست کر دیا گیا ہے')),
+                      );
+                    },
+                    icon: const Icon(Icons.rotate_left, size: 18, color: Color(0xFFAC3400)),
+                    label: const Text(
+                      'دوبارہ کوڈ بھیجیں',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFAC3400),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Submit verification step trigger
+                  ElevatedButton(
+                    onPressed: isLoading ? null : verifyOTP,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF003527),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      minimumSize: const Size.fromHeight(52),
+                    ),
+                    child: isLoading 
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text(
+                          'تصدیق اور آگے بڑھیں',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

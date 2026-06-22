@@ -6,7 +6,9 @@ import 'dart:convert';
 import '../../core/config/app_config.dart';
 
 class WeatherScreen extends StatefulWidget {
-  const WeatherScreen({super.key});
+  final VoidCallback? onMenuPressed;
+  final bool isUrdu;
+  const WeatherScreen({super.key, this.onMenuPressed, this.isUrdu = false});
 
   @override
   State<WeatherScreen> createState() => _WeatherScreenState();
@@ -22,9 +24,88 @@ class _WeatherScreenState extends State<WeatherScreen> {
   List<Weather> _forecast = [];
   bool _isLoading = true;
   bool _isOffline = false;
+  int _selectedForecastIndex = -1; // -1 means actual current weather, >=0 means a forecast day
 
   final String _apiKey = AppConfig.openWeatherApiKey;
   final String _city = AppConfig.defaultWeatherCity;
+
+  final Map<String, dynamic> _fallbackCurrent = {
+    'temp': '36',
+    'desc': 'Clear sky',
+    'icon': '01d',
+    'humidity': '48',
+    'wind': '11.5',
+    'clouds': '5',
+    'feelsLike': '39',
+  };
+
+  final List<Map<String, dynamic>> _fallbackForecast = [
+    {
+      'day': 'Tue',
+      'tempMax': '37',
+      'tempMin': '26',
+      'temp': '35',
+      'icon': '01d',
+      'desc': 'Clear sky',
+      'humidity': '45',
+      'wind': '12.0',
+      'clouds': '0',
+      'feelsLike': '38',
+      'formattedDate': '23 Jun, 2026',
+    },
+    {
+      'day': 'Wed',
+      'tempMax': '35',
+      'tempMin': '25',
+      'temp': '33',
+      'icon': '02d',
+      'desc': 'Few Clouds',
+      'humidity': '52',
+      'wind': '14.5',
+      'clouds': '15',
+      'feelsLike': '36',
+      'formattedDate': '24 Jun, 2026',
+    },
+    {
+      'day': 'Thu',
+      'tempMax': '34',
+      'tempMin': '24',
+      'temp': '31',
+      'icon': '03d',
+      'desc': 'Scattered Clouds',
+      'humidity': '60',
+      'wind': '10.2',
+      'clouds': '40',
+      'feelsLike': '33',
+      'formattedDate': '25 Jun, 2026',
+    },
+    {
+      'day': 'Fri',
+      'tempMax': '32',
+      'tempMin': '23',
+      'temp': '28',
+      'icon': '09d',
+      'desc': 'Shower Rain',
+      'humidity': '78',
+      'wind': '18.0',
+      'clouds': '75',
+      'feelsLike': '30',
+      'formattedDate': '26 Jun, 2026',
+    },
+    {
+      'day': 'Sat',
+      'tempMax': '33',
+      'tempMin': '24',
+      'temp': '30',
+      'icon': '02d',
+      'desc': 'Few Clouds',
+      'humidity': '55',
+      'wind': '11.0',
+      'clouds': '20',
+      'feelsLike': '32',
+      'formattedDate': '27 Jun, 2026',
+    },
+  ];
 
   @override
   void initState() {
@@ -67,6 +148,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
         'humidity': current.humidity?.toString() ?? '0',
         'wind': (current.windSpeed != null ? (current.windSpeed! * 3.6).toStringAsFixed(1) : '0.0'),
         'clouds': current.cloudiness?.toString() ?? '0',
+        'feelsLike': current.tempFeelsLike?.celsius?.toStringAsFixed(0) ?? '--',
       };
       await prefs.setString('cache_current_data', jsonEncode(currentCache));
 
@@ -75,7 +157,14 @@ class _WeatherScreenState extends State<WeatherScreen> {
           'day': w.date != null ? DateFormat('EEEE').format(w.date!) : 'Day',
           'tempMax': w.tempMax?.celsius?.toStringAsFixed(0) ?? '--',
           'tempMin': w.tempMin?.celsius?.toStringAsFixed(0) ?? '--',
+          'temp': w.temperature?.celsius?.toStringAsFixed(0) ?? w.tempMax?.celsius?.toStringAsFixed(0) ?? '--',
           'icon': w.weatherIcon ?? '01d',
+          'desc': w.weatherDescription ?? 'Clear',
+          'humidity': w.humidity?.toString() ?? '60',
+          'wind': (w.windSpeed != null ? (w.windSpeed! * 3.6).toStringAsFixed(1) : '10.0'),
+          'clouds': w.cloudiness?.toString() ?? '10',
+          'feelsLike': w.tempFeelsLike?.celsius?.toStringAsFixed(0) ?? w.temperature?.celsius?.toStringAsFixed(0) ?? '--',
+          'formattedDate': w.date != null ? DateFormat('dd MMM, yyyy').format(w.date!) : '',
         };
       }).toList();
       await prefs.setString('cache_forecast_data', jsonEncode(forecastCache));
@@ -96,255 +185,959 @@ class _WeatherScreenState extends State<WeatherScreen> {
         });
       } else {
         setState(() {
+          _offlineCurrent = _fallbackCurrent;
+          _offlineForecast = _fallbackForecast;
           _isOffline = true;
           _isLoading = false;
         });
+        // Save these VIP values to cache for immediate smooth secondary boots
+        await prefs.setString('cache_current_data', jsonEncode(_fallbackCurrent));
+        await prefs.setString('cache_forecast_data', jsonEncode(_fallbackForecast));
       }
     }
   }
 
-  // Sahi visual icons nikalne k liye smart function jo internet k bina b perfect chalta ha
+  // Bilingual translation mapper for weather status descriptions
+  String _translateCondition(String desc) {
+    if (!widget.isUrdu) return desc.toUpperCase();
+    final lowercase = desc.toLowerCase();
+    if (lowercase.contains('clear') || lowercase.contains('sunny')) return "صاف اور سہانا آسمان";
+    if (lowercase.contains('cloud')) {
+      if (lowercase.contains('few') || lowercase.contains('scattered')) return "ہلکے اور بکھرے بادل";
+      return "گہرے ابر آلود بادل";
+    }
+    if (lowercase.contains('rain') || lowercase.contains('drizzle')) return "ہلکی بارش اور بوندہ باندی";
+    if (lowercase.contains('thunderstorm')) return "گرج چمک کے ساتھ شدید طوفان";
+    if (lowercase.contains('snow')) return "برف باری کا امکان";
+    if (lowercase.contains('mist') || lowercase.contains('fog') || lowercase.contains('haze')) return "دھند (کم بصارت کی وارننگ)";
+    return desc;
+  }
+
+  // Translate days of the week beautifully for agricultural forecast panels
+  String _translateDay(String englishDay) {
+    if (!widget.isUrdu) return englishDay;
+    final dayLower = englishDay.toLowerCase();
+    Map<String, String> dayNames = {
+      'monday': 'پیر', 'mon': 'پیر',
+      'tuesday': 'منگل', 'tue': 'منگل',
+      'wednesday': 'بدھ', 'wed': 'بدھ',
+      'thursday': 'جمعرات', 'thu': 'جمعرات',
+      'friday': 'جمعہ', 'fri': 'جمعہ',
+      'saturday': 'ہفتہ', 'sat': 'ہفتہ',
+      'sunday': 'اتوار', 'sun': 'اتوار'
+    };
+    return dayNames[dayLower] ?? englishDay;
+  }
+
+  // Dynamic weatherproof ag-recommender
+  Widget _buildSmartAgAdvisory(String desc, double humidityVal, double windSpeedVal) {
+    String advisoryTitle = widget.isUrdu ? "فصل کے لیے خصوصی زرعی مشورہ" : "Smart Agricultural Advisory";
+    String advisoryDeets = "";
+    IconData advisoryIcon = Icons.agriculture_rounded;
+    Color advisoryColor = const Color(0xFFAC3400); // Earth Terracotta
+
+    final lowercase = desc.toLowerCase();
+    if (lowercase.contains('rain') || lowercase.contains('drizzle') || lowercase.contains('storm')) {
+      advisoryDeets = widget.isUrdu
+          ? "بارش کا امکان ہے! پودوں پر کیمیائی سپرے اور کھاد ڈالنے کا کام روک دیں۔ باغات میں اضافی پانی نکالنے کے راستے کھلے رکھیں۔"
+          : "Rain expected! Postpone pesticide spray and solid fertilizer setups. Ensure orchard soil gullies are cleared of blockages.";
+      advisoryIcon = Icons.umbrella_rounded;
+    } else if (windSpeedVal > 15) {
+      advisoryDeets = widget.isUrdu
+          ? "ہوا کی رفتار قدرے زیادہ ہے (${windSpeedVal.toStringAsFixed(1)} km/h)۔ اس موسم میں سپرے کرنے سے گریز کریں تاکہ زہر ضائع نہ ہو۔"
+          : "Breezy conditions detected (${windSpeedVal.toStringAsFixed(1)} km/h). Avoid spraying today to prevent chemical drift.";
+      advisoryIcon = Icons.air_rounded;
+    } else if (humidityVal > 80) {
+      advisoryDeets = widget.isUrdu
+          ? "ہوا میں نمی زیادہ ہے (${humidityVal.toStringAsFixed(0)}%)۔ باغات میں فنگس (پھپھوندی) کے حملے کا خطرہ ہے۔ باقاعدگی سے نگرانی کریں۔"
+          : "High humidity (${humidityVal.toStringAsFixed(0)}%). Increases fungal disease pressure. Inspect orchard tree leaves regularly.";
+      advisoryIcon = Icons.bug_report_rounded;
+    } else if (lowercase.contains('clear') || lowercase.contains('sunny')) {
+      advisoryDeets = widget.isUrdu
+          ? "آج دھوپ اور صاف موسم ہے۔ پودوں کو وقت پر پانی دینے اور باغات میں صفائی ستھرائی شروع کرنے کا بہترین موقع ہے۔"
+          : "Sunny and clear! Perfect window for scheduled tree irrigation, manual weed control, and general orchard maintenance.";
+      advisoryIcon = Icons.wb_sunny_rounded;
+    } else {
+      advisoryDeets = widget.isUrdu
+          ? "موسم معتدل رہے گا۔ اپنی زمین کی نمی کی جانچ کریں اور پودوں کی ضرورت کے مطابق معمول کی دیکھ بھال جاری رکھیں۔"
+          : "Stable weather conditions. Keep checking soil moisture and proceed with regular protective ag operations.";
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF003527).withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: advisoryColor.withValues(alpha: 0.40), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          )
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: advisoryColor.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(advisoryIcon, color: advisoryColor, size: 28),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  advisoryTitle,
+                  style: TextStyle(
+                    color: advisoryColor,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  advisoryDeets,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    height: 1.45,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  // Returns weather-appropriate icons
   Widget _getWeatherIcon(String? iconCode, {required double size}) {
+    // Beautiful VIP Gradient-based glowing weather icons with explicit layout constraints
     if (iconCode == null) {
-      return Icon(Icons.wb_sunny_rounded, color: Colors.amber, size: size);
+      return SizedBox(
+        width: size,
+        height: size,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.amber.withValues(alpha: 0.45),
+                    blurRadius: size * 0.4,
+                    spreadRadius: size * 0.1,
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.wb_sunny_rounded, color: Colors.amber.shade400, size: size),
+          ],
+        ),
+      );
     }
     
-    IconData iconData;
-    Color iconColor;
-    
-    // Icon codes ko check karne ka clean system (01d, 02n, etc.)
     String code = iconCode.replaceAll('d', '').replaceAll('n', '');
     bool isNight = iconCode.contains('n');
     
     switch (code) {
-      case '01': // Clear sky / Saaf Mausam
-        iconData = isNight ? Icons.nights_stay_rounded : Icons.wb_sunny_rounded;
-        iconColor = isNight ? Colors.indigo.shade100 : Colors.amber;
-        break;
-      case '02': // Few clouds / Halke Badal
-        iconData = isNight ? Icons.cloudy_snowing : Icons.wb_cloudy_rounded;
-        iconColor = isNight ? Colors.blueGrey.shade200 : Colors.lightBlue.shade300;
-        break;
+      case '01': // Clear sky / Sunny
+        return SizedBox(
+          width: size,
+          height: size,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: (isNight ? Colors.indigoAccent : Colors.orangeAccent).withValues(alpha: 0.5),
+                      blurRadius: size * 0.4,
+                      spreadRadius: size * 0.1,
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                isNight ? Icons.nights_stay_rounded : Icons.wb_sunny_rounded,
+                color: isNight ? Colors.indigo.shade100 : Colors.amber.shade400,
+                size: size,
+              ),
+            ],
+          ),
+        );
+
+      case '02': // Few clouds (Sun/Moon with custom Cloud layer)
+        return SizedBox(
+          width: size,
+          height: size,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Icon(
+                  isNight ? Icons.nights_stay_rounded : Icons.wb_sunny_rounded,
+                  color: isNight ? Colors.indigo.shade200 : Colors.amber.shade400,
+                  size: size * 0.72,
+                ),
+              ),
+              Positioned(
+                bottom: 2,
+                left: 2,
+                child: Icon(
+                  Icons.cloud_rounded,
+                  color: Colors.white.withValues(alpha: 0.95),
+                  size: size * 0.78,
+                ),
+              ),
+            ],
+          ),
+        );
+
       case '03': // Scattered clouds
-      case '04': // Broken clouds / Gehray Badal
-        iconData = Icons.cloud_rounded;
-        iconColor = Colors.blue.shade400; // Bright colorful cloud instead of dark/black
-        break;
+      case '04': // Broken/Heavy clouds
+        return SizedBox(
+          width: size,
+          height: size,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Positioned(
+                bottom: 2,
+                right: 2,
+                child: Icon(
+                  Icons.cloud_rounded,
+                  color: Colors.blue.shade200.withValues(alpha: 0.75),
+                  size: size * 0.78,
+                ),
+              ),
+              Positioned(
+                top: 2,
+                left: 2,
+                child: Icon(
+                  Icons.cloud_rounded,
+                  color: Colors.cyan.shade100,
+                  size: size * 0.80,
+                ),
+              ),
+            ],
+          ),
+        );
+
       case '09': // Shower rain
-      case '10': // Rain / Barish
-        iconData = Icons.beach_access_rounded;
-        iconColor = Colors.blue.shade700; // Deep water drop blue
-        break;
-      case '11': // Thunderstorm / Toofan
-        iconData = Icons.thunderstorm_rounded;
-        iconColor = Colors.orangeAccent;
-        break;
-      case '13': // Snow / Barf
-        iconData = Icons.ac_unit_rounded;
-        iconColor = Colors.cyan.shade300;
-        break;
-      case '50': // Mist / Dhund
-        iconData = Icons.waves_rounded;
-        iconColor = Colors.teal.shade300;
-        break;
+      case '10': // Rain
+        return SizedBox(
+          width: size,
+          height: size,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Icon(
+                Icons.cloud_rounded,
+                color: Colors.blue.shade300,
+                size: size * 0.85,
+              ),
+              Positioned(
+                bottom: 2,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.water_drop_rounded, color: Colors.cyanAccent.shade400, size: size * 0.28),
+                    const SizedBox(width: 2),
+                    Icon(Icons.water_drop_rounded, color: Colors.cyanAccent.shade400, size: size * 0.28),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+
+      case '11': // Thunderstorm
+        return SizedBox(
+          width: size,
+          height: size,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Icon(
+                Icons.cloud_rounded,
+                color: Colors.indigo.shade300,
+                size: size * 0.88,
+              ),
+              Positioned(
+                bottom: -2,
+                child: Icon(
+                  Icons.flash_on_rounded,
+                  color: Colors.yellowAccent,
+                  size: size * 0.54,
+                ),
+              ),
+            ],
+          ),
+        );
+
+      case '13': // Snow
+        return SizedBox(
+          width: size,
+          height: size,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Icon(
+                Icons.cloud_rounded,
+                color: Colors.cyan.shade200,
+                size: size * 0.85,
+              ),
+              Positioned(
+                bottom: 1,
+                child: Icon(
+                  Icons.ac_unit_rounded,
+                  color: Colors.white,
+                  size: size * 0.36,
+                ),
+              ),
+            ],
+          ),
+        );
+
+      case '50': // Mist / Fog
+        return Icon(
+          Icons.waves_rounded,
+          color: Colors.teal.shade300,
+          size: size,
+        );
+
       default:
-        iconData = Icons.wb_sunny_rounded;
-        iconColor = Colors.amber;
+        return SizedBox(
+          width: size,
+          height: size,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.amber.withValues(alpha: 0.45),
+                      blurRadius: size * 0.4,
+                      spreadRadius: size * 0.1,
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.wb_sunny_rounded, color: Colors.amber.shade400, size: size),
+          ],
+        ),
+      );
     }
-
-    // Agar app offline ho to network image load krne ki koshish b na kro, aur bright local icons dikhao!
-    if (_isOffline) {
-      Color adjustedColor = iconColor;
-      
-      // White card (Next Days Forecast) par white icons chup na jayein, isliye use bright vivid colors!
-      if (size < 40) {
-        if (iconColor == Colors.white || iconColor == Colors.white70 || iconColor == Colors.blueGrey.shade200) {
-          adjustedColor = Colors.blue.shade400; // Glowing blue clouds on white background
-        } else if (iconColor == Colors.amber) {
-          adjustedColor = Colors.orange.shade700; // Warm amber sun on white background
-        }
-      }
-      return Icon(iconData, color: adjustedColor, size: size);
-    }
-
-    // Online hone par openweather se high-res image load karo, crash hone par errorBuilder local colourful icon show karega
-    return Image.network(
-      "https://openweathermap.org/img/wn/$iconCode${size > 40 ? '@4x' : ''}.png",
-      width: size,
-      height: size,
-      errorBuilder: (context, error, stackTrace) {
-        Color adjustedColor = iconColor;
-        if (size < 40) {
-          if (iconColor == Colors.white || iconColor == Colors.white70 || iconColor == Colors.blueGrey.shade200) {
-            adjustedColor = Colors.blue.shade400;
-          } else if (iconColor == Colors.amber) {
-            adjustedColor = Colors.orange.shade700;
-          }
-        }
-        return Icon(iconData, color: adjustedColor, size: size);
-      },
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final String cityLabel = _city.replaceAll(',PK', '');
-    final String temp = _isOffline
-        ? "${_offlineCurrent?['temp'] ?? '--'}°"
-        : (_currentWeather?.temperature?.celsius != null
-            ? "${_currentWeather!.temperature!.celsius!.toStringAsFixed(0)}°"
-            : "--°");
+    final String cityLabel = widget.isUrdu ? "لیہ، پاکستان" : _city.replaceAll(',PK', '');
+    
+    final bool isViewingForecast = _selectedForecastIndex >= 0;
 
-    final String feelsLike = _isOffline
-        ? "--"
-        : (_currentWeather?.tempFeelsLike?.celsius != null
-            ? "${_currentWeather!.tempFeelsLike!.celsius!.toStringAsFixed(0)}°"
-            : "--");
+    // Date computation
+    String displayDate;
+    if (isViewingForecast) {
+      if (_isOffline) {
+        if (_selectedForecastIndex < _offlineForecast.length) {
+          displayDate = _offlineForecast[_selectedForecastIndex]['formattedDate'] ?? '';
+        } else {
+          displayDate = '';
+        }
+      } else {
+        if (_selectedForecastIndex < _forecast.length) {
+          final w = _forecast[_selectedForecastIndex];
+          displayDate = w.date != null ? DateFormat('dd MMM, yyyy').format(w.date!) : '';
+        } else {
+          displayDate = '';
+        }
+      }
+    } else {
+      displayDate = DateFormat('dd MMM, yyyy').format(DateTime.now());
+    }
 
-    final String description = _isOffline
-        ? (_offlineCurrent?['desc'] ?? "Clear").toString()
-        : (_currentWeather?.weatherDescription ?? "Clear");
+    // Day or Temp Title computation
+    String targetDayName = "";
+    if (isViewingForecast) {
+      if (_isOffline) {
+        if (_selectedForecastIndex < _offlineForecast.length) {
+          targetDayName = _translateDay((_offlineForecast[_selectedForecastIndex]['day'] ?? "Day").toString());
+        }
+      } else {
+        if (_selectedForecastIndex < _forecast.length) {
+          final w = _forecast[_selectedForecastIndex];
+          targetDayName = _translateDay(w.date != null ? DateFormat('EEEE').format(w.date!) : "Day");
+        }
+      }
+    }
+    final String tempTitle = isViewingForecast
+        ? (widget.isUrdu ? "$targetDayName کا درجہ حرارت" : "$targetDayName Temp")
+        : (widget.isUrdu ? "درجہ حرارت" : "Current Temp");
 
-    final String humidity = _isOffline ? "${_offlineCurrent?['humidity'] ?? 0}%" : "${_currentWeather?.humidity ?? 0}%";
-    final String wind = _isOffline
-        ? "${_offlineCurrent?['wind'] ?? 0.0} km/h"
-        : "${_currentWeather?.windSpeed != null ? (_currentWeather!.windSpeed! * 3.6).toStringAsFixed(1) : 0.0} km/h";
+    // Temperature
+    final String temp;
+    if (isViewingForecast) {
+      if (_isOffline) {
+        if (_selectedForecastIndex < _offlineForecast.length) {
+          final w = _offlineForecast[_selectedForecastIndex];
+          temp = "${w['temp'] ?? w['tempMax'] ?? '--'}°C";
+        } else {
+          temp = "--°C";
+        }
+      } else {
+        if (_selectedForecastIndex < _forecast.length) {
+          final w = _forecast[_selectedForecastIndex];
+          final fTemp = w.temperature?.celsius ?? w.tempMax?.celsius;
+          temp = fTemp != null ? "${fTemp.toStringAsFixed(0)}°C" : "--°C";
+        } else {
+          temp = "--°C";
+        }
+      }
+    } else {
+      temp = _isOffline
+          ? "${_offlineCurrent?['temp'] ?? '--'}°C"
+          : (_currentWeather?.temperature?.celsius != null
+              ? "${_currentWeather!.temperature!.celsius!.toStringAsFixed(0)}°C"
+              : "--°C");
+    }
 
-    String? iconCode = _isOffline ? (_offlineCurrent != null ? _offlineCurrent!['icon'] : null) : _currentWeather?.weatherIcon;
+    final double rawTempNum;
+    if (isViewingForecast) {
+      if (_isOffline) {
+        if (_selectedForecastIndex < _offlineForecast.length) {
+          rawTempNum = double.tryParse(_offlineForecast[_selectedForecastIndex]['temp']?.toString() ?? '') ?? 30.0;
+        } else {
+          rawTempNum = 30.0;
+        }
+      } else {
+        if (_selectedForecastIndex < _forecast.length) {
+          rawTempNum = _forecast[_selectedForecastIndex].temperature?.celsius ?? _forecast[_selectedForecastIndex].tempMax?.celsius ?? 30.0;
+        } else {
+          rawTempNum = 30.0;
+        }
+      }
+    } else {
+      rawTempNum = _isOffline
+          ? double.tryParse(_offlineCurrent?['temp']?.toString() ?? '') ?? 30.0
+          : (_currentWeather?.temperature?.celsius ?? 30.0);
+    }
+
+    // Feels Like
+    final String feelsLike;
+    if (isViewingForecast) {
+      if (_isOffline) {
+        if (_selectedForecastIndex < _offlineForecast.length) {
+          feelsLike = "${_offlineForecast[_selectedForecastIndex]['feelsLike'] ?? '--'}°C";
+        } else {
+          feelsLike = "--°C";
+        }
+      } else {
+        if (_selectedForecastIndex < _forecast.length) {
+          final w = _forecast[_selectedForecastIndex];
+          final fFeels = w.tempFeelsLike?.celsius ?? w.temperature?.celsius ?? w.tempMax?.celsius;
+          feelsLike = fFeels != null ? "${fFeels.toStringAsFixed(0)}°C" : "--°C";
+        } else {
+          feelsLike = "--°C";
+        }
+      }
+    } else {
+      feelsLike = _isOffline
+          ? "${_offlineCurrent?['feelsLike'] ?? '--'}°C"
+          : (_currentWeather?.tempFeelsLike?.celsius != null
+              ? "${_currentWeather!.tempFeelsLike!.celsius!.toStringAsFixed(0)}°C"
+              : "--°C");
+    }
+
+    // Condition Description
+    final String description;
+    if (isViewingForecast) {
+      if (_isOffline) {
+        if (_selectedForecastIndex < _offlineForecast.length) {
+          description = (_offlineForecast[_selectedForecastIndex]['desc'] ?? "Clear").toString();
+        } else {
+          description = "Clear";
+        }
+      } else {
+        if (_selectedForecastIndex < _forecast.length) {
+          description = _forecast[_selectedForecastIndex].weatherDescription ?? "Clear";
+        } else {
+          description = "Clear";
+        }
+      }
+    } else {
+      description = _isOffline
+          ? (_offlineCurrent?['desc'] ?? "Clear").toString()
+          : (_currentWeather?.weatherDescription ?? "Clear");
+    }
+
+    // Relative Air Humidity
+    final String humidity;
+    final double rawHumidityNum;
+    if (isViewingForecast) {
+      if (_isOffline) {
+        if (_selectedForecastIndex < _offlineForecast.length) {
+          humidity = "${_offlineForecast[_selectedForecastIndex]['humidity'] ?? 0}%";
+          rawHumidityNum = double.tryParse(_offlineForecast[_selectedForecastIndex]['humidity']?.toString() ?? '') ?? 60.0;
+        } else {
+          humidity = "0%";
+          rawHumidityNum = 60.0;
+        }
+      } else {
+        if (_selectedForecastIndex < _forecast.length) {
+          humidity = "${_forecast[_selectedForecastIndex].humidity ?? 0}%";
+          rawHumidityNum = (_forecast[_selectedForecastIndex].humidity ?? 60.0).toDouble();
+        } else {
+          humidity = "0%";
+          rawHumidityNum = 60.0;
+        }
+      }
+    } else {
+      humidity = _isOffline ? "${_offlineCurrent?['humidity'] ?? 0}%" : "${_currentWeather?.humidity ?? 0}%";
+      rawHumidityNum = _isOffline
+          ? double.tryParse(_offlineCurrent?['humidity']?.toString() ?? '') ?? 60.0
+          : (_currentWeather?.humidity ?? 60.0).toDouble();
+    }
+
+    // Wind Speed
+    final String wind;
+    final double rawWindNum;
+    if (isViewingForecast) {
+      if (_isOffline) {
+        if (_selectedForecastIndex < _offlineForecast.length) {
+          wind = "${_offlineForecast[_selectedForecastIndex]['wind'] ?? 0.0} km/h";
+          rawWindNum = double.tryParse(_offlineForecast[_selectedForecastIndex]['wind']?.toString() ?? '') ?? 10.0;
+        } else {
+          wind = "0.0 km/h";
+          rawWindNum = 10.0;
+        }
+      } else {
+        if (_selectedForecastIndex < _forecast.length) {
+          final w = _forecast[_selectedForecastIndex];
+          wind = "${w.windSpeed != null ? (w.windSpeed! * 3.6).toStringAsFixed(1) : 0.0} km/h";
+          rawWindNum = w.windSpeed != null ? (w.windSpeed! * 3.6) : 10.0;
+        } else {
+          wind = "0.0 km/h";
+          rawWindNum = 10.0;
+        }
+      }
+    } else {
+      wind = _isOffline
+          ? "${_offlineCurrent?['wind'] ?? 0.0} km/h"
+          : "${_currentWeather?.windSpeed != null ? (_currentWeather!.windSpeed! * 3.6).toStringAsFixed(1) : 0.0} km/h";
+      rawWindNum = _isOffline
+          ? double.tryParse(_offlineCurrent?['wind']?.toString() ?? '') ?? 10.0
+          : (_currentWeather?.windSpeed != null ? (_currentWeather!.windSpeed! * 3.6) : 10.0);
+    }
+
+    // Cloudiness
+    final String clouds;
+    if (isViewingForecast) {
+      if (_isOffline) {
+        if (_selectedForecastIndex < _offlineForecast.length) {
+          clouds = "${_offlineForecast[_selectedForecastIndex]['clouds'] ?? 0}%";
+        } else {
+          clouds = "0%";
+        }
+      } else {
+        if (_selectedForecastIndex < _forecast.length) {
+          clouds = "${_forecast[_selectedForecastIndex].cloudiness ?? 0}%";
+        } else {
+          clouds = "0%";
+        }
+      }
+    } else {
+      clouds = _isOffline ? "${_offlineCurrent?['clouds'] ?? 0}%" : "${_currentWeather?.cloudiness ?? 0}%";
+    }
+
+    // Weather Icon Code
+    String? iconCode;
+    if (isViewingForecast) {
+      if (_isOffline) {
+        if (_selectedForecastIndex < _offlineForecast.length) {
+          iconCode = _offlineForecast[_selectedForecastIndex]['icon'];
+        }
+      } else {
+        if (_selectedForecastIndex < _forecast.length) {
+          iconCode = _forecast[_selectedForecastIndex].weatherIcon;
+        }
+      }
+    } else {
+      iconCode = _isOffline ? (_offlineCurrent != null ? _offlineCurrent!['icon'] : null) : _currentWeather?.weatherIcon;
+    }
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: Colors.white))
           : RefreshIndicator(
               onRefresh: _fetchWeatherData,
               color: Colors.white,
-              backgroundColor: const Color(0xFF0B6FFF),
+              backgroundColor: const Color(0xFF003527),
               child: Stack(
                 children: [
-                  const _SkyBackground(),
-                  // Bottom illustration
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    height: 220,
-                    child: IgnorePointer(
-                      child: CustomPaint(
-                        painter: _HillsPainter(),
-                        child: const SizedBox.expand(),
+                  // Sleek, high-contrast dark forest background matching Dashboard style
+                  Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Color(0xFF003527),
+                          Color(0xFF002219),
+                        ],
                       ),
                     ),
                   ),
                   SafeArea(
                     child: ListView(
                       physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-                      padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
                       children: [
-                        // Top bar (share + menu)
+                        // Custom Interactive Header matching the App UX System
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            _roundIconButton(
-                              icon: Icons.ios_share_rounded,
-                              onTap: () => Navigator.maybePop(context),
+                            if (widget.onMenuPressed != null)
+                              GestureDetector(
+                                onTap: widget.onMenuPressed,
+                                child: Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.12),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+                                  ),
+                                  child: const Icon(Icons.menu_open_rounded, color: Colors.white, size: 24),
+                                ),
+                              )
+                            else
+                              GestureDetector(
+                                onTap: () => Navigator.maybePop(context),
+                                child: Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.12),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+                                  ),
+                                  child: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 24),
+                                ),
+                              ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFAC3400).withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: const Color(0xFFAC3400).withValues(alpha: 0.4)),
+                              ),
+                              child: Text(
+                                widget.isUrdu ? "موسمی اسٹیشن" : "AGRI-WEATHER STATION",
+                                style: const TextStyle(
+                                  color: Color(0xFFFBC02D),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
                             ),
-                            _roundIconButton(
-                              icon: Icons.more_horiz_rounded,
-                              onTap: () {},
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        
+                        // Location Display Info
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.location_on_rounded, color: Color(0xFFAC3400), size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              cityLabel,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (isViewingForecast) ...[
+                          const SizedBox(height: 10),
+                          Center(
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _selectedForecastIndex = -1;
+                                });
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFAC3400),
+                                  borderRadius: BorderRadius.circular(20),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.25),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.today_rounded, color: Colors.white, size: 14),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      widget.isUrdu ? "آج کا موسم دکھائیں" : "Show Today's Weather",
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    const Icon(Icons.close_rounded, color: Colors.white, size: 14),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 22),
+
+                        // VIP Sleek Glassmorphism Interactive Hero Weather Block
+                        Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Colors.white.withValues(alpha: 0.16),
+                                Colors.white.withValues(alpha: 0.06),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(30),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.20), width: 1.5),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.15),
+                                blurRadius: 20,
+                                offset: const Offset(0, 10),
+                              )
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          tempTitle,
+                                          style: TextStyle(
+                                            color: Colors.white.withValues(alpha: 0.7),
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          temp,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 54,
+                                            fontWeight: FontWeight.w900,
+                                            height: 1.0,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          _translateCondition(description),
+                                          style: const TextStyle(
+                                            color: Color(0xFFFBC02D),
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                         ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Column(
+                                    children: [
+                                      SizedBox(
+                                        width: 100,
+                                        height: 100,
+                                        child: Center(child: _getWeatherIcon(iconCode, size: 85)),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(alpha: 0.12),
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: Text(
+                                          "${widget.isUrdu ? 'محسوس درجہ حرارت' : 'Feels like'} $feelsLike",
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              const Divider(color: Colors.white24, height: 30, thickness: 1),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.check_circle_rounded, color: Colors.greenAccent, size: 18),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        widget.isUrdu ? "فارمنگ ونڈو کھلی ہے" : "Safe Spray Window Active",
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Text(
+                                    displayDate,
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(alpha: 0.6),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        if (_isOffline) ...[
+                          _playfulBanner(
+                            icon: Icons.cloud_off_rounded,
+                            text: widget.isUrdu 
+                                ? "آف لائن موڈ: محفوظ شدہ ڈیٹا دکھایا جا رہا ہے"
+                                : "Offline Mode: displaying cached data",
+                            tint: const Color(0xFFFBC02D),
+                          ),
+                          const SizedBox(height: 18),
+                        ],
+
+                        // 5-Day Forecast Translucent Slider Panel (Moved directly below the main weather display elements)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              widget.isUrdu ? "آئندہ 5 دنوں کی پیشگوئی" : "5-Day Agronomic Forecast",
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 14),
-                        Center(
-                          child: Text(
-                            cityLabel,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                            ),
+
+                        _forecastStrip(),
+                        const SizedBox(height: 24),
+
+                        // VIP Dynamic Soil-Ag Bento Dashboard Grid
+                        Text(
+                          widget.isUrdu ? "مٹی اور ماحولیاتی پیرا میٹرز" : "Soil & Atmosphere parameters",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
                           ),
+                        ),
+                        const SizedBox(height: 14),
+
+                        GridView.count(
+                          crossAxisCount: 2,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 1.15,
+                          children: [
+                            _bentoGridCard(
+                              icon: Icons.water_drop_rounded,
+                              label: widget.isUrdu ? "فضا میں نمی" : "Air Humidity",
+                              value: humidity,
+                              subtext: widget.isUrdu 
+                                  ? (rawHumidityNum > 70 ? "زیادہ (کیڑے کا خطرہ)" : "نارمل")
+                                  : (rawHumidityNum > 70 ? "High (Pest threat)" : "Optimal"),
+                              iconColor: Colors.blueAccent,
+                            ),
+                            _bentoGridCard(
+                              icon: Icons.wind_power_rounded,
+                              label: widget.isUrdu ? "ہوا کی رفتار" : "Wind Speed",
+                              value: wind,
+                              subtext: widget.isUrdu 
+                                  ? (rawWindNum > 15 ? "تیز ہوا (سپرے مت کریں)" : "محفوظ")
+                                  : (rawWindNum > 15 ? "Strong (Delay spray)" : "Safe to Spray"),
+                              iconColor: const Color(0xFFAC3400),
+                            ),
+                            _bentoGridCard(
+                              icon: Icons.wb_sunny_outlined,
+                              label: widget.isUrdu ? "بادلوں کی کثافت" : "Cloud Cover",
+                              value: clouds,
+                              subtext: widget.isUrdu 
+                                  ? (clouds.contains('0%') ? "مکمل دھوپ" : "جزوی ابر آلود")
+                                  : (clouds.contains('0%') ? "Full Sunshine" : "Partly Cloudy"),
+                              iconColor: Colors.amberAccent,
+                            ),
+                            _bentoGridCard(
+                              icon: Icons.thermostat_rounded,
+                              label: widget.isUrdu ? "محسوس درجہ حرارت" : "Real Feel",
+                              value: feelsLike,
+                              subtext: widget.isUrdu ? "مٹی کا درجہ حرارت باثوق" : "Reliable soil correlation",
+                              iconColor: Colors.redAccent,
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 24),
-                        // Weather hero (icon + temp)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            SizedBox(
-                              width: 76,
-                              height: 76,
-                              child: Center(child: _getWeatherIcon(iconCode, size: 64)),
-                            ),
-                            const SizedBox(width: 14),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  temp,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 56,
-                                    fontWeight: FontWeight.w900,
-                                    height: 1.0,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  "Feels $feelsLike",
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Center(
-                          child: Text(
-                            description.toUpperCase(),
-                            style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w800, letterSpacing: 0.6),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Center(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 18),
-                            child: Text(
-                              "Make the most of this nice weather.\nAaj ka mausam behtareen hai — apni fasal ka kaam plan karein.",
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.92),
-                                fontSize: 15,
-                                height: 1.35,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 22),
-                        if (_isOffline) ...[
-                          _playfulBanner(
-                            icon: Icons.cloud_off_rounded,
-                            text: "Offline mode: cached data is shown",
-                            tint: const Color(0xFFFFD54F),
-                          ),
-                          const SizedBox(height: 14),
-                        ],
-                        // Quick stats chips
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            _statChip(icon: Icons.water_drop_rounded, label: "Humidity", value: humidity),
-                            const SizedBox(width: 10),
-                            _statChip(icon: Icons.air_rounded, label: "Wind", value: wind),
-                          ],
-                        ),
-                        const SizedBox(height: 18),
-                        _forecastStrip(iconCode),
-                        const SizedBox(height: 200), // keep space above hills illustration
+
+                        // VIP Terracotta-framed Agricultural smart advisory
+                        _buildSmartAgAdvisory(description, rawHumidityNum, rawWindNum),
+                        const SizedBox(height: 100), // comfortable viewport padding
                       ],
                     ),
                   ),
@@ -354,65 +1147,22 @@ class _WeatherScreenState extends State<WeatherScreen> {
     );
   }
 
-  Widget _roundIconButton({required IconData icon, required VoidCallback onTap}) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
-      child: Container(
-        width: 42,
-        height: 42,
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.14),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: Colors.white.withOpacity(0.25)),
-        ),
-        child: Icon(icon, color: Colors.white),
-      ),
-    );
-  }
-
-  Widget _statChip({required IconData icon, required String label, required String value}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.14),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withOpacity(0.22)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: Colors.white, size: 18),
-          const SizedBox(width: 8),
-          Text(
-            "$label ",
-            style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w800, fontSize: 12),
-          ),
-          Text(
-            value,
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 12),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _playfulBanner({required IconData icon, required String text, required Color tint}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.14),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.22)),
+        color: const Color(0xFF003527).withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: tint.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
-          Icon(icon, color: tint),
-          const SizedBox(width: 10),
+          Icon(icon, color: tint, size: 22),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13),
             ),
           ),
         ],
@@ -420,17 +1170,97 @@ class _WeatherScreenState extends State<WeatherScreen> {
     );
   }
 
-  Widget _forecastStrip(String? iconCode) {
+  Widget _bentoGridCard({
+    required IconData icon,
+    required String label,
+    required String value,
+    required String subtext,
+    required Color iconColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: iconColor, size: 20),
+              ),
+              const Icon(Icons.arrow_forward, color: Colors.white24, size: 14),
+            ],
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.5),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtext,
+                style: TextStyle(
+                  color: iconColor,
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.bold,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _forecastStrip() {
     final bool hasData = _isOffline ? _offlineForecast.isNotEmpty : _forecast.isNotEmpty;
-    if (!hasData) return const SizedBox.shrink();
+    if (!hasData) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        alignment: Alignment.center,
+        child: const Text("No forecast data", style: TextStyle(color: Colors.white70)),
+      );
+    }
 
     return SizedBox(
-      height: 72,
+      height: 120,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
         itemCount: _isOffline ? _offlineForecast.length : _forecast.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (context, index) {
           String day;
           String hi;
@@ -438,209 +1268,102 @@ class _WeatherScreenState extends State<WeatherScreen> {
           String icon;
           if (_isOffline) {
             final w = _offlineForecast[index];
-            day = (w['day'] ?? "Day").toString().substring(0, 3);
+            day = _translateDay((w['day'] ?? "Day").toString().substring(0, 3));
             hi = "${w['tempMax'] ?? '--'}°";
             lo = "${w['tempMin'] ?? '--'}°";
             icon = (w['icon'] ?? "01d").toString();
           } else {
             final w = _forecast[index];
-            day = w.date != null ? DateFormat('EEE').format(w.date!) : "Day";
+            day = _translateDay(w.date != null ? DateFormat('EEE').format(w.date!) : "Day");
             hi = w.tempMax?.celsius != null ? "${w.tempMax!.celsius!.toStringAsFixed(0)}°" : "--°";
             lo = w.tempMin?.celsius != null ? "${w.tempMin!.celsius!.toStringAsFixed(0)}°" : "--°";
             icon = w.weatherIcon ?? "01d";
           }
 
-          return Container(
-            width: 92,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.14),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: Colors.white.withOpacity(0.22)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(day, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    _getWeatherIcon(icon, size: 18),
-                    const SizedBox(width: 6),
-                    Text(hi, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
-                    const SizedBox(width: 4),
-                    Text(lo, style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w800)),
-                  ],
+          final bool isSelected = _selectedForecastIndex == index;
+          return GestureDetector(
+            onTap: () {
+              setState(() {
+                _selectedForecastIndex = index;
+              });
+            },
+            child: Container(
+              width: 100,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: isSelected
+                      ? [
+                          const Color(0xFFAC3400).withValues(alpha: 0.35),
+                          const Color(0xFFAC3400).withValues(alpha: 0.12),
+                        ]
+                      : [
+                          Colors.white.withValues(alpha: 0.10),
+                          Colors.white.withValues(alpha: 0.04),
+                        ],
                 ),
-              ],
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isSelected ? const Color(0xFFAC3400) : Colors.white.withValues(alpha: 0.14),
+                  width: isSelected ? 2.0 : 1.0,
+                ),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFFAC3400).withValues(alpha: 0.20),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        )
+                      ]
+                    : null,
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    day,
+                    style: TextStyle(
+                      color: isSelected ? const Color(0xFFFBC02D) : Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13,
+                    ),
+                  ),
+                  SizedBox(
+                    width: 32,
+                    height: 32,
+                    child: Center(child: _getWeatherIcon(icon, size: 28)),
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        hi,
+                        style: TextStyle(
+                          color: isSelected ? Colors.white : Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        lo,
+                        style: TextStyle(
+                          color: isSelected ? Colors.white.withValues(alpha: 0.7) : Colors.white54,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           );
         },
       ),
     );
   }
-}
-
-class _SkyBackground extends StatelessWidget {
-  const _SkyBackground();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Color(0xFF0B6FFF),
-            Color(0xFF178BFF),
-            Color(0xFF1FA0FF),
-          ],
-        ),
-      ),
-      child: Stack(
-        children: const [
-          // soft clouds
-          _CloudBlob(top: 80, left: 30, scale: 1.0, opacity: 0.18),
-          _CloudBlob(top: 140, right: 20, scale: 1.2, opacity: 0.16),
-          _CloudBlob(top: 210, left: 70, scale: 0.9, opacity: 0.14),
-          _CloudBlob(top: 260, right: 80, scale: 0.95, opacity: 0.12),
-        ],
-      ),
-    );
-  }
-}
-
-class _CloudBlob extends StatelessWidget {
-  final double top;
-  final double? left;
-  final double? right;
-  final double scale;
-  final double opacity;
-
-  const _CloudBlob({
-    required this.top,
-    this.left,
-    this.right,
-    required this.scale,
-    required this.opacity,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      top: top,
-      left: left,
-      right: right,
-      child: Opacity(
-        opacity: opacity,
-        child: Transform.scale(
-          scale: scale,
-          child: Container(
-            width: 150,
-            height: 70,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Stack(
-              children: [
-                Positioned(
-                  left: 18,
-                  bottom: 18,
-                  child: Container(
-                    width: 55,
-                    height: 55,
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(999)),
-                  ),
-                ),
-                Positioned(
-                  left: 58,
-                  bottom: 28,
-                  child: Container(
-                    width: 70,
-                    height: 70,
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(999)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _HillsPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paintBack = Paint()..color = const Color(0xFF39D67E);
-    final paintFront = Paint()..color = const Color(0xFF1EC16E);
-    final paintGround = Paint()..color = const Color(0xFF16A85D);
-
-    final pathBack = Path()
-      ..moveTo(0, size.height * 0.60)
-      ..quadraticBezierTo(size.width * 0.25, size.height * 0.38, size.width * 0.55, size.height * 0.58)
-      ..quadraticBezierTo(size.width * 0.78, size.height * 0.72, size.width, size.height * 0.52)
-      ..lineTo(size.width, size.height)
-      ..lineTo(0, size.height)
-      ..close();
-    canvas.drawPath(pathBack, paintBack);
-
-    final pathFront = Path()
-      ..moveTo(0, size.height * 0.70)
-      ..quadraticBezierTo(size.width * 0.22, size.height * 0.55, size.width * 0.46, size.height * 0.72)
-      ..quadraticBezierTo(size.width * 0.74, size.height * 0.90, size.width, size.height * 0.66)
-      ..lineTo(size.width, size.height)
-      ..lineTo(0, size.height)
-      ..close();
-    canvas.drawPath(pathFront, paintFront);
-
-    final pathGround = Path()
-      ..moveTo(0, size.height * 0.82)
-      ..quadraticBezierTo(size.width * 0.30, size.height * 0.70, size.width * 0.60, size.height * 0.88)
-      ..quadraticBezierTo(size.width * 0.86, size.height, size.width, size.height * 0.82)
-      ..lineTo(size.width, size.height)
-      ..lineTo(0, size.height)
-      ..close();
-    canvas.drawPath(pathGround, paintGround);
-
-    // simple trees
-    _drawTree(canvas, const Offset(50, 160));
-    _drawTree(canvas, const Offset(92, 172), scale: 0.9);
-    _drawTree(canvas, const Offset(size.width - 70, 168), scale: 0.95);
-    _drawTree(canvas, const Offset(size.width - 110, 182), scale: 0.85);
-  }
-
-  void _drawTree(Canvas canvas, Offset base, {double scale = 1.0}) {
-    final trunk = Paint()..color = const Color(0xFF7A4A2A);
-    final leaf1 = Paint()..color = const Color(0xFF0F7A44);
-    final leaf2 = Paint()..color = const Color(0xFF14A85D);
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(base.dx, base.dy, 10 * scale, 22 * scale),
-        const Radius.circular(4),
-      ),
-      trunk,
-    );
-
-    final p1 = Path()
-      ..moveTo(base.dx - 14 * scale, base.dy + 6 * scale)
-      ..lineTo(base.dx + 5 * scale, base.dy - 30 * scale)
-      ..lineTo(base.dx + 24 * scale, base.dy + 6 * scale)
-      ..close();
-    canvas.drawPath(p1, leaf1);
-
-    final p2 = Path()
-      ..moveTo(base.dx - 10 * scale, base.dy - 4 * scale)
-      ..lineTo(base.dx + 5 * scale, base.dy - 44 * scale)
-      ..lineTo(base.dx + 20 * scale, base.dy - 4 * scale)
-      ..close();
-    canvas.drawPath(p2, leaf2);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

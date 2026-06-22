@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:intl_phone_field/intl_phone_field.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/constants/app_colors.dart';
-import 'otp_verification_screen.dart'; // Sahi path local folder se
+import 'otp_verification_screen.dart';
 
 class PhoneInputScreen extends StatefulWidget {
   const PhoneInputScreen({super.key});
@@ -12,14 +12,38 @@ class PhoneInputScreen extends StatefulWidget {
 }
 
 class _PhoneInputScreenState extends State<PhoneInputScreen> {
-  String completePhoneNumber = '';
+  final TextEditingController _phoneController = TextEditingController();
+  bool _isButtonEnabled = false;
   bool isLoading = false;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  @override
+  void initState() {
+    super.initState();
+    _phoneController.addListener(() {
+      setState(() {
+        _isButtonEnabled = _phoneController.text.length >= 9;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _phoneController.dispose();
+    super.dispose();
+  }
+
   void sendOTP() async {
-    if (completePhoneNumber.isEmpty) {
+    String trimmedPhone = _phoneController.text.trim();
+    if (trimmedPhone.startsWith('0')) {
+      trimmedPhone = trimmedPhone.substring(1);
+    }
+
+    final String completePhoneNumber = '+92$trimmedPhone';
+
+    if (trimmedPhone.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid phone number')),
+        const SnackBar(content: Text('براہ کرم ایک درست فون نمبر درج کریں')),
       );
       return;
     }
@@ -39,7 +63,7 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
             isLoading = false;
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Verification Failed: ${e.message}')),
+            SnackBar(content: Text('تصدیق ناکام: ${e.message}')),
           );
         },
         codeSent: (String verificationId, int? resendToken) {
@@ -63,7 +87,7 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
         isLoading = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
+        SnackBar(content: Text('خرابی: ${e.toString()}')),
       );
     }
   }
@@ -71,127 +95,297 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.gradientBottom,
-      resizeToAvoidBottomInset: true,
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color.fromARGB(255, 48, 177, 55), AppColors.gradientBottom],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: SafeArea(
-          bottom: false,
-          child: CustomScrollView(
-            slivers: [
-              SliverToBoxAdapter(
-                child: Column(
-                  children: [
-                    const SizedBox(height: 60),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 20),
-                      child: Text(
-                        "Welcome to KisanGuide",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white, 
-                          fontSize: 56, 
-                          fontWeight: FontWeight.w900, 
-                          letterSpacing: 1.2,
-                          height: 1.1,
-                    ),
+      backgroundColor: const Color(0xFFF8F9FA),
+      body: Stack(
+        children: [
+          // Background Header Sowing Photo
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: MediaQuery.of(context).size.height * 0.45,
+            child: Container(
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: NetworkImage(
+                    'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?q=80&w=1000&auto=format&fit=crop',
                   ),
-                ),
-                    const SizedBox(height: 80),
-                  ],
+                  fit: BoxFit.cover,
                 ),
               ),
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.only(top: 40, left: 30, right: 30, bottom: 40),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.95),
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(40),
-                      topRight: Radius.circular(40),
-                    ),
-                    boxShadow: const [
-                      BoxShadow(color: Colors.black12, blurRadius: 20, spreadRadius: 5),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.15),
+                      const Color(0xFFF8F9FA),
                     ],
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                ),
+              ),
+            ),
+          ),
+
+          // Central Zarai Bubble Badge
+          Positioned(
+            top: 60,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(30),
+                child: Container(
+                  color: Colors.white.withValues(alpha: 0.85),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Center(
-                        child: Text(
-                          "Verify with Phone Number",
-                          style: TextStyle(
-                            fontSize: 20, 
-                            fontWeight: FontWeight.bold, 
-                            color: AppColors.primaryGreen
-                          ),
-                        ),
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
                       ),
-                      const SizedBox(height: 35),
+                      const SizedBox(width: 8),
                       const Text(
-                        "Phone Number", 
-                        style: TextStyle(fontWeight: FontWeight.w600, color: Colors.black87)
+                        'Zarai',
+                        style: TextStyle(
+                          color: Color(0xFF003527),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
                       ),
-                      const SizedBox(height: 12),
-                      IntlPhoneField(
-                        initialCountryCode: 'PK',
-                        showCountryFlag: true,
-                        dropdownIconPosition: IconPosition.trailing,
-                        cursorColor: AppColors.primaryGreen,
-                        decoration: InputDecoration(
-                          hintText: '3xx xxxxxxx',
-                          filled: true,
-                          fillColor: AppColors.softGrey,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide: BorderSide.none,
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide: const BorderSide(color: AppColors.primaryGreen, width: 1.5),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // Core Interactive components list elements
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'خوش آمدید',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF003527),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'اپنے فارم کو جدید ٹیکنالوجی سے جوڑیں',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Login input block container card
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(28),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF003527).withValues(alpha: 0.04),
+                          blurRadius: 24,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Text(
+                          'اپنا فون نمبر درج کریں',
+                          textAlign: TextAlign.right,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey,
                           ),
                         ),
-                        onChanged: (phone) {
-                          completePhoneNumber = phone.completeNumber;
-                        },
-                      ),
-                      const SizedBox(height: 35),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 58,
-                        child: ElevatedButton(
-                          onPressed: isLoading ? null : sendOTP,
+                        const SizedBox(height: 8),
+
+                        // Form input component
+                        Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8F9FA),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                          child: Row(
+                            children: [
+                              Row(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(2),
+                                    child: Container(
+                                      width: 20,
+                                      height: 12,
+                                      color: const Color(0xFF01411C),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    '+92',
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(width: 1, height: 24, color: Colors.grey.shade300),
+                                ],
+                              ),
+                              const SizedBox(width: 12),
+
+                              Expanded(
+                                child: TextField(
+                                  controller: _phoneController,
+                                  keyboardType: TextInputType.phone,
+                                  textAlign: TextAlign.left,
+                                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                  decoration: const InputDecoration(
+                                    border: InputBorder.none,
+                                    hintText: '300xxxxxxx',
+                                    hintStyle: TextStyle(color: Colors.grey),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        // Submit action button
+                        ElevatedButton(
+                          onPressed: (_isButtonEnabled && !isLoading) ? sendOTP : null,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primaryGreen,
-                            elevation: 5,
-                            shadowColor: AppColors.primaryGreen.withValues(alpha: 0.4),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)), 
+                            backgroundColor: const Color(0xFF003527),
+                            disabledBackgroundColor: const Color(0xFF003527).withValues(alpha: 0.4),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                           ),
                           child: isLoading 
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text(
-                                "Continue", 
-                                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                              )
+                            : const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.arrow_back, color: Colors.white, size: 20),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'جاری رکھیں',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ],
                               ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Language & Help Grid Setup
+                  Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('زبان تبدیل کی جا رہی ہے...')),
+                            );
+                          },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+                            child: const Column(
+                              children: [
+                                Icon(Icons.language, color: Colors.green, size: 22),
+                                SizedBox(height: 6),
+                                Text(
+                                  'زبان تبدیل کریں',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: InkWell(
+                          onTap: () {
+                            showDialog(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('کسان ہیلپ لائن', textAlign: TextAlign.right),
+                                content: const Text(
+                                  'رجسٹریشن میں مسئلہ ہے؟ بلا معاوضہ رابطہ کریں:\n0800-12345',
+                                  textAlign: TextAlign.right,
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('ٹھیک ہے'),
+                                  )
+                                ],
+                              ),
+                            );
+                          },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+                            child: const Column(
+                              children: [
+                                Icon(Icons.help_outline, color: Colors.green, size: 22),
+                                SizedBox(height: 6),
+                                Text(
+                                  'مدد کی ضرورت ہے؟',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                     ],
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

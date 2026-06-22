@@ -61,16 +61,16 @@ class KisaanGuideApp extends StatelessWidget {
         ),
       ),
 
-      // BULLET SPEED DIRECT ROUTING: 
-      // Agar local memory me user logged in hai to direct Dashboard, nahi to Phone Input Screen!
-      initialRoute: isUserLoggedIn ? AppRouter.dashboard : AppRouter.phoneInput,
+      // BULLET SPEED DIRECT ROUTING:
+      // Dynamically load Dashboard if logged in, otherwise Phone Input Screen as root.
+      initialRoute: '/',
       
-      // Map routes: Saari screens ka table jo AppRouter ke sath merge ho jayega
-      routes: {
-        AppRouter.phoneInput: (context) => const PhoneInputScreen(), 
-        AppRouter.dashboard: (context) => const DashboardScreen(),
-        ...AppRouter.getRoutes(), // Aapke baki saare routes jo pehle se chal rahe hain
-      },
+      // Map routes: Dynamically override the '/' root route to avoid history stack contamination.
+      routes: (() {
+        final Map<String, WidgetBuilder> r = AppRouter.getRoutes();
+        r['/'] = (context) => isUserLoggedIn ? const DashboardScreen() : const PhoneInputScreen();
+        return r;
+      })(),
 
       // Agar koi route galti se miss ho jaye toh handle karne ke liye
       onUnknownRoute: (settings) {
